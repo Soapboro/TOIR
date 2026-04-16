@@ -1,0 +1,210 @@
+Этап 1 — Инициализация проекта
+Запрос 1.1 — Структура проекта
+
+
+Создай структуру Django-проекта для системы ТОиР:
+- Backend: Django 4.2 + Django REST Framework + PostgreSQL (папка /backend)
+- Frontend: React (папка /frontend)
+- docker-compose.yml для PostgreSQL + backend + frontend
+- Приложения Django: users, equipment, requests, maintenance, analytics, notifications
+- Установи зависимости: djangorestframework, psycopg2-binary, djangorestframework-simplejwt,
+  django-cors-headers, drf-spectacular, django-apscheduler, bcrypt
+- Включи .env.example с нужными переменными окружения
+Запрос 1.2 — Модели базы данных
+
+
+Создай Django-модели для системы ТОиР:
+- Приложение users: кастомный User (AbstractBaseUser) с полями email, full_name,
+  role (ENUM: admin, mechanic, operator, manager), is_active
+- Приложение equipment: Equipment (name, model, serial_number, year, location, status),
+  MaintenanceRegulation (equipment FK, maintenance_type, interval_days, description)
+- Приложение requests: RepairRequest (equipment FK, created_by FK, assigned_to FK,
+  priority, status, description, created_at, updated_at)
+- Приложение maintenance: MaintenanceRecord (equipment FK, performed_by FK,
+  work_type, description, performed_at), MaintenanceSchedule (equipment FK,
+  regulation FK, planned_date, status)
+- Приложение notifications: Notification (user FK, message, is_read, created_at)
+Создай и примени миграции.
+Этап 2 — Аутентификация и пользователи
+Запрос 2.1 — Auth модуль
+
+
+Реализуй аутентификацию в Django REST Framework:
+- Настрой djangorestframework-simplejwt: access token 24ч, refresh token 7 дней
+- POST /api/auth/register — регистрация, хэш пароля через Django PasswordHasher (bcrypt)
+- POST /api/auth/login — возврат access + refresh токенов
+- POST /api/auth/refresh — обновление access токена
+- GET /api/auth/me — данные текущего пользователя
+- Настрой permission classes: IsAuthenticated по умолчанию
+- Реализуй кастомные permissions по ролям: IsAdmin, IsMechanic, IsOperator, IsManager
+Запрос 2.2 — CRUD пользователей
+
+
+Реализуй ViewSet управления пользователями (только для admin):
+- GET /api/users — список пользователей
+- GET /api/users/{id}
+- PUT /api/users/{id} — изменение роли, статуса
+- DELETE /api/users/{id}
+- Сериализаторы: UserListSerializer (без пароля), UserDetailSerializer
+- Зарегистрируй роутер в urls.py
+Этап 3 — Оборудование
+Запрос 3.1 — CRUD оборудования
+
+
+Реализуй EquipmentViewSet:
+- GET /api/equipment — список с фильтрами (статус, местоположение) через django-filter
+- GET /api/equipment/{id} — карточка с вложенной историей ТО
+- POST /api/equipment — создание (только admin/manager)
+- PUT /api/equipment/{id} — редактирование
+- DELETE /api/equipment/{id}
+- GET /api/equipment/{id}/history — кастомный action, история всех работ
+- Сериализаторы: EquipmentListSerializer, EquipmentDetailSerializer (с вложенными записями)
+Запрос 3.2 — Регламенты ТО
+
+
+Реализуй MaintenanceRegulationViewSet:
+- GET /api/equipment/{id}/regulations
+- POST /api/equipment/{id}/regulations — добавить регламент
+- PUT /api/regulations/{id}
+- DELETE /api/regulations/{id}
+- Фильтрация по equipment через queryset
+Этап 4 — Заявки и записи ТО
+Запрос 4.1 — Заявки на ремонт
+
+
+Реализуй RepairRequestViewSet:
+- GET /api/requests — список с фильтрами (статус, приоритет, assigned_to)
+- GET /api/requests/{id}
+- POST /api/requests — создать (operator, mechanic), created_by ставится автоматически
+- PUT /api/requests/{id}/assign — кастомный action, назначить исполнителя (manager, admin)
+- PUT /api/requests/{id}/status — сменить статус, статусы: new→assigned→in_progress→completed→closed
+- При смене статуса в save() модели или через сигнал — создавать Notification назначенному
+- Сериализаторы с вложенным отображением пользователей и оборудования
+Запрос 4.2 — Записи выполненных работ
+
+
+Реализуй MaintenanceRecordViewSet:
+- GET /api/maintenance-records — список с фильтрами по оборудованию и дате
+- POST /api/maintenance-records — зафиксировать выполненную работу (mechanic)
+- GET /api/equipment/{id}/maintenance-records — кастомный action на EquipmentViewSet
+- performed_by ставится из request.user автоматически
+Этап 5 — Планирование и уведомления
+Запрос 5.1 — Планы-графики ТО
+
+
+Реализуй планирование ТО:
+- MaintenanceScheduleViewSet: GET /api/schedules (фильтр по месяцу, оборудованию, статусу),
+  PUT /api/schedules/{id} — смена статуса
+- Фоновая задача через django-apscheduler: ежедневно запускать check_maintenance_schedules()
+- Логика задачи: для каждого регламента найти последнюю запись MaintenanceRecord,
+  если (дата последнего ТО + interval_days) <= сегодня + 7 дней — создать MaintenanceSchedule
+- Зарегистрировать задачу в apps.py через AppConfig.ready()
+Запрос 5.2 — Уведомления
+
+
+Реализуй систему уведомлений:
+- Отправка email через Django send_mail() (SMTP настройки в settings.py)
+- Сигналы Django: post_save на RepairRequest — отправлять email + создавать Notification
+  при назначении исполнителя и приближении планового ТО (за 3 дня)
+- GET /api/notifications — список уведомлений текущего пользователя
+- PUT /api/notifications/{id}/read — пометить прочитанным
+- PUT /api/notifications/read-all — пометить все прочитанными
+- GET /api/notifications/unread-count — счётчик для фронтенда
+Этап 6 — Предиктивная аналитика
+Запрос 6.1 — Расчёт MTBF и прогнозирование
+
+
+Реализуй модуль предиктивной аналитики в приложении analytics:
+- Функция calculate_mtbf(equipment_id): выбрать записи MaintenanceRecord
+  с work_type="аварийный", вычислить среднее время между отказами
+- Функция predict_next_failure(equipment_id): последний отказ + MTBF = прогноз
+- GET /api/analytics/predictions — прогнозы по всему парку, сортировка по срочности
+- GET /api/analytics/equipment/{id}/prediction — прогноз по конкретному станку
+- Если записей об отказах меньше 2 — возвращать null с пояснением
+Запрос 6.2 — Аналитические отчёты
+
+
+Реализуй аналитические роуты:
+- GET /api/analytics/summary — общая статистика: кол-во оборудования по статусам,
+  открытые заявки, ТО на этой неделе, просроченные ТО
+- GET /api/analytics/equipment/{id}/stats — статистика станка: кол-во ремонтов,
+  MTBF, последнее ТО, следующее плановое ТО
+- GET /api/analytics/report — отчёт за период (параметры date_from, date_to)
+- Настрой drf-spectacular для автогенерации Swagger UI на /api/docs/
+Этап 7 — Django Admin
+Запрос 7.1 — Настройка админки
+
+
+Настрой встроенную Django Admin:
+- Зарегистрируй все модели с удобным отображением
+- EquipmentAdmin: list_display (name, model, status, location), list_filter, search_fields
+- RepairRequestAdmin: list_display (equipment, status, priority, assigned_to), list_filter
+- MaintenanceScheduleAdmin: с цветовой индикацией просроченных (list_display с методом)
+- UserAdmin: на основе UserAdmin из django.contrib.auth.admin
+- Это даст бесплатный интерфейс управления для администратора системы
+Этап 8 — Frontend (без изменений по структуре)
+Запрос 8.1 — Инициализация React
+
+
+Создай React-приложение:
+- Стек: React 18, React Router v6, TanStack Query, Zustand, Ant Design, React Hook Form, Recharts
+- Настрой axios с базовым URL /api/ и interceptor для JWT (access token в заголовке,
+  при 401 — автоматический refresh через /api/auth/refresh/, при неудаче — logout)
+- Zustand store: user, token, logout()
+- Защищённые роуты с редиректом на /login
+- Адаптивный layout с боковым меню
+
+Запрос 8.2 — Раздел заявок на ремонт
+
+
+Реализуй раздел заявок на ремонт:
+- Таблица заявок с фильтрами по статусу, приоритету, исполнителю
+- Форма создания заявки (выбор оборудования, описание, приоритет)
+- Карточка заявки с историей изменений статуса
+- Для manager: кнопка назначения исполнителя + смены статуса
+- Цветовая индикация приоритетов: критический / высокий / средний / низкий
+Запрос 8.3 — Раздел планов-графиков
+
+
+Реализуй раздел планирования ТО:
+- Представление в виде таблицы и календаря (переключение)
+- Фильтры по месяцу, оборудованию, статусу
+- Цветовая индикация: запланировано (синий), выполнено (зелёный), просрочено (красный)
+- Кнопка ручного создания записи в расписании
+Запрос 8.4 — Раздел аналитики
+
+
+Реализуй дашборд аналитики:
+- Виджеты: кол-во оборудования, открытые заявки, ТО на этой неделе, просроченные ТО
+- График динамики заявок по месяцам (Line chart)
+- Таблица прогнозов неисправностей с цветовой индикацией срочности
+- Таблица статистики по оборудованию (MTBF, кол-во ремонтов)
+Запрос 8.5 — Уведомления
+
+
+Реализуй систему уведомлений в интерфейсе:
+- Иконка колокольчика в шапке с бейджем непрочитанных (polling каждые 30 сек)
+- Выпадающий список последних уведомлений
+- Страница всех уведомлений с пагинацией и кнопкой "прочитать все"
+
+Этап 9 — Тестирование и деплой
+Запрос 9.1 — Тесты
+
+
+Напиши тесты через Django TestCase и DRF APIClient:
+- tests/test_auth.py: регистрация, логин, доступ без токена, доступ с чужой ролью
+- tests/test_equipment.py: CRUD с проверкой прав по ролям
+- tests/test_requests.py: создание заявки, смена статуса, проверка создания Notification
+- tests/test_analytics.py: расчёт MTBF при наличии 3+ записей об отказах,
+  возврат null при недостатке данных
+- Используй фикстуры для создания тестовых пользователей и оборудования
+Запрос 9.2 — Docker и деплой
+
+
+Настрой production docker-compose:
+- Сервисы: postgres, backend (gunicorn + Django), frontend (nginx), nginx reverse proxy
+- Nginx: проксирование /api/ → backend, /admin/ → backend, / → frontend
+- Статика Django: collectstatic в Dockerfile, раздача через nginx
+- HTTPS через Let's Encrypt
+- Health check для всех сервисов
+- .env файл для всех секретов

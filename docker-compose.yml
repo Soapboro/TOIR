@@ -1,0 +1,60 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: toir_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-toir_db}
+      POSTGRES_USER: ${DB_USER:-toir_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-toir_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-toir_user} -d ${DB_NAME:-toir_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: toir_backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+    volumes:
+      - ./backend:/app
+      - media_files:/app/media
+      - static_files:/app/staticfiles
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: toir_frontend
+    restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000/api}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  media_files:
+  static_files:
