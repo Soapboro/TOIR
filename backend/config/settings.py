@@ -96,6 +96,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ── Password hashers (bcrypt first, PBKDF2 as fallback) ──────────────────────
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
+
 # ── DRF ──────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -117,7 +124,7 @@ REST_FRAMEWORK = {
 # ── JWT ───────────────────────────────────────────────────────────────────────
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(
-        minutes=config('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=60, cast=int)
+        minutes=config('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=1440, cast=int)
     ),
     'REFRESH_TOKEN_LIFETIME': timedelta(
         days=config('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)
@@ -125,6 +132,7 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'UPDATE_LAST_LOGIN': True,
 }
 
 # ── CORS ──────────────────────────────────────────────────────────────────────

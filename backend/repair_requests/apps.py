@@ -5,3 +5,6 @@ class RepairRequestsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'repair_requests'
     verbose_name = 'Заявки на ремонт'
+
+    def ready(self):
+        import repair_requests.signals  # noqa: F401

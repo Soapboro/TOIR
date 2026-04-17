@@ -9,9 +9,13 @@ urlpatterns = [
 
     # API
     path('api/auth/',        include('users.urls')),
+    path('api/users/',       include('users.admin_urls')),
     path('api/equipment/',   include('equipment.urls')),
+    path('api/regulations/', include('equipment.regulation_urls')),
     path('api/requests/',    include('repair_requests.urls')),
-    path('api/maintenance/', include('maintenance.urls')),
+    path('api/maintenance/',         include('maintenance.urls')),
+    path('api/maintenance-records/', include('maintenance.record_urls')),
+    path('api/schedules/',           include('maintenance.schedule_urls')),
     path('api/analytics/',   include('analytics.urls')),
     path('api/notifications/', include('notifications.urls')),
 

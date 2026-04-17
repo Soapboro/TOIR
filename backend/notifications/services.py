@@ -49,12 +49,28 @@ def notify_request_assigned(repair_request):
 
 
 def notify_request_status_changed(repair_request):
-    user = repair_request.created_by
     title = f'Статус заявки #{repair_request.pk} изменён'
-    message = f'Новый статус: {repair_request.get_status_display()}'
-    _create_notification(user, title, message, NotificationType.REQUEST_STATUS_CHANGED,
-                         related_object_id=repair_request.pk, related_object_type='RepairRequest')
-    _send_email_notification(user, title, message)
+    message = (
+        f'Оборудование: {repair_request.equipment}\n'
+        f'Тема: {repair_request.title}\n'
+        f'Новый статус: {repair_request.get_status_display()}'
+    )
+    kwargs = dict(
+        notification_type=NotificationType.REQUEST_STATUS_CHANGED,
+        related_object_id=repair_request.pk,
+        related_object_type='RepairRequest',
+    )
+
+    # Уведомить автора заявки
+    _create_notification(repair_request.created_by, title, message, **kwargs)
+    _send_email_notification(repair_request.created_by, title, message)
+
+    # Уведомить назначенного исполнителя (если есть и это не тот же человек)
+    assignee = repair_request.assigned_to
+    if assignee and assignee_id := assignee.pk:
+        if assignee_id != repair_request.created_by_id:
+            _create_notification(assignee, title, message, **kwargs)
+            _send_email_notification(assignee, title, message)
 
 
 def notify_maintenance_due(plan):

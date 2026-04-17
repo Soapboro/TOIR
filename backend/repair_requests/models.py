@@ -13,10 +13,24 @@ class Priority(models.TextChoices):
 
 class RequestStatus(models.TextChoices):
     NEW = 'new', 'Новая'
+    ASSIGNED = 'assigned', 'Назначена'
     IN_PROGRESS = 'in_progress', 'В работе'
     ON_HOLD = 'on_hold', 'Приостановлена'
     COMPLETED = 'completed', 'Выполнена'
+    CLOSED = 'closed', 'Закрыта'
     CANCELLED = 'cancelled', 'Отменена'
+
+
+# Разрешённые переходы через /status action (без /assign)
+VALID_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    RequestStatus.ASSIGNED:    {RequestStatus.IN_PROGRESS, RequestStatus.CANCELLED},
+    RequestStatus.IN_PROGRESS: {RequestStatus.COMPLETED, RequestStatus.ON_HOLD, RequestStatus.CANCELLED},
+    RequestStatus.ON_HOLD:     {RequestStatus.IN_PROGRESS, RequestStatus.CANCELLED},
+    RequestStatus.COMPLETED:   {RequestStatus.CLOSED},
+    RequestStatus.NEW:         {RequestStatus.CANCELLED},  # прямая отмена без назначения
+    RequestStatus.CLOSED:      set(),
+    RequestStatus.CANCELLED:   set(),
+}
 
 
 class RepairRequest(models.Model):
