@@ -1,15 +1,18 @@
 from django.db.models import Count, Avg, Sum
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from equipment.models import Equipment
+from equipment.models import Equipment, EquipmentStatus
 from maintenance.models import MaintenanceHistory, MaintenancePlan, PlanStatus
 from repair_requests.models import RepairRequest, RequestStatus
 from .models import EquipmentReliability, FailurePrediction
 from .serializers import EquipmentReliabilitySerializer, FailurePredictionSerializer
+from .services import predict_next_failure
 
 
 class EquipmentReliabilityViewSet(viewsets.ReadOnlyModelViewSet):
