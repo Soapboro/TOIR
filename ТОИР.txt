@@ -11,3 +11,5 @@
 docker-compose up --build
 
 docker compose exec backend python manage.py migrate
+
+admin@toir.local Admin1234!

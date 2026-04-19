@@ -120,7 +120,7 @@
 - Настрой drf-spectacular для автогенерации Swagger UI на /api/docs/
 
 Этап 7 — Django Admin
-Запрос 7.1 — Настройка админки
++ Запрос 7.1 — Настройка админки
 Настрой встроенную Django Admin:
 - Зарегистрируй все модели с удобным отображением
 - EquipmentAdmin: list_display (name, model, status, location), list_filter, search_fields
@@ -130,16 +130,16 @@
 - Это даст бесплатный интерфейс управления для администратора системы
 
 Этап 8 — Frontend (без изменений по структуре)
-Запрос 8.1 — Инициализация React
++ Запрос 8.1 — Инициализация React
 Создай React-приложение:
 - Стек: React 18, React Router v6, TanStack Query, Zustand, Ant Design, React Hook Form, Recharts
 - Настрой axios с базовым URL /api/ и interceptor для JWT (access token в заголовке,
   при 401 — автоматический refresh через /api/auth/refresh/, при неудаче — logout)
 - Zustand store: user, token, logout()
 - Защищённые роуты с редиректом на /login
-- Адаптивный layout с боковым меню
+- Адаптивный layout с верхним меню
 
-Запрос 8.2 — Раздел заявок на ремонт
++ Запрос 8.2 — Раздел заявок на ремонт
 Реализуй раздел заявок на ремонт:
 - Таблица заявок с фильтрами по статусу, приоритету, исполнителю
 - Форма создания заявки (выбор оборудования, описание, приоритет)

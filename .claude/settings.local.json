@@ -5,7 +5,10 @@
       "Bash(pip show *)",
       "Bash(cat)",
       "Read(//tmp/**)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(docker-compose run *)",
+      "Bash(docker-compose exec backend python manage.py shell -c ' *)",
+      "Bash(docker-compose exec *)"
     ]
   }
 }

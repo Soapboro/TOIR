@@ -1,40 +1,38 @@
 import axios from 'axios';
+import useAuthStore from '../store/authStore';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
+  baseURL: '/api',
 });
 
-// Attach access token to every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access');
+  const { token } = useAuthStore.getState();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Auto-refresh token on 401
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
-      const refresh = localStorage.getItem('refresh');
-      if (refresh) {
+      const { refreshToken, setAccessToken, logout } = useAuthStore.getState();
+      if (refreshToken) {
         try {
-          const { data } = await axios.post(
-            `${api.defaults.baseURL}/auth/refresh/`,
-            { refresh }
-          );
-          localStorage.setItem('access', data.access);
+          const { data } = await axios.post('/api/auth/refresh/', { refresh: refreshToken });
+          setAccessToken(data.access);
           original.headers.Authorization = `Bearer ${data.access}`;
           return api(original);
         } catch {
-          localStorage.removeItem('access');
-          localStorage.removeItem('refresh');
+          logout();
           window.location.href = '/login';
         }
+      } else {
+        logout();
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
