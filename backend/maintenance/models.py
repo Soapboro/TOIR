@@ -13,6 +13,7 @@ class MaintenanceType(models.TextChoices):
     CALIBRATION = 'calibration', 'Калибровка'
     LUBRICATION = 'lubrication', 'Смазка'
     OVERHAUL = 'overhaul', 'Капитальный ремонт'
+    EMERGENCY = 'аварийный', 'Аварийный ремонт'
 
 
 class PlanStatus(models.TextChoices):

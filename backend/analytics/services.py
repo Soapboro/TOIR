@@ -1,17 +1,15 @@
 from datetime import date, timedelta
 
-from repair_requests.models import RepairRequest, RequestStatus
-
-_FAILURE_STATUSES = [RequestStatus.COMPLETED, RequestStatus.CLOSED]
+from maintenance.models import MaintenanceHistory, MaintenanceType
 
 
 def _failure_timestamps(equipment_id):
-    """Sorted list of failure datetimes (completed RepairRequests)."""
+    """Sorted list of performed_at datetimes for emergency (аварийный) maintenance records."""
     return list(
-        RepairRequest.objects
-        .filter(equipment_id=equipment_id, status__in=_FAILURE_STATUSES)
-        .order_by('created_at')
-        .values_list('created_at', flat=True)
+        MaintenanceHistory.objects
+        .filter(equipment_id=equipment_id, maintenance_type=MaintenanceType.EMERGENCY)
+        .order_by('performed_at')
+        .values_list('performed_at', flat=True)
     )
 
 

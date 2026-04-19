@@ -20,7 +20,8 @@ urlpatterns = [
     path('api/notifications/', include('notifications.urls')),
 
     # OpenAPI / Swagger
-    path('api/schema/',        SpectacularAPIView.as_view(),        name='schema'),
-    path('api/schema/swagger/', SpectacularSwaggerUIView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/schema/redoc/',   SpectacularRedocView.as_view(url_name='schema'),     name='redoc'),
+    path('api/schema/',         SpectacularAPIView.as_view(),                         name='schema'),
+    path('api/docs/',           SpectacularSwaggerUIView.as_view(url_name='schema'),  name='swagger-ui'),
+    path('api/schema/swagger/', SpectacularSwaggerUIView.as_view(url_name='schema'),  name='swagger-ui-legacy'),
+    path('api/schema/redoc/',   SpectacularRedocView.as_view(url_name='schema'),      name='redoc'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
