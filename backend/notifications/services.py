@@ -67,10 +67,9 @@ def notify_request_status_changed(repair_request):
 
     # Уведомить назначенного исполнителя (если есть и это не тот же человек)
     assignee = repair_request.assigned_to
-    if assignee and assignee_id := assignee.pk:
-        if assignee_id != repair_request.created_by_id:
-            _create_notification(assignee, title, message, **kwargs)
-            _send_email_notification(assignee, title, message)
+    if assignee and assignee.pk != repair_request.created_by_id:
+        _create_notification(assignee, title, message, **kwargs)
+        _send_email_notification(assignee, title, message)
 
 
 def notify_maintenance_due(plan):

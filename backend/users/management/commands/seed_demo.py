@@ -21,7 +21,7 @@ from repair_requests.models import Priority, RepairRequest, RequestStatus
 
 
 DEMO_DOMAIN = 'toir.demo'
-DEMO_PASSWORD = 'DemoPass123!'
+DEMO_PASSWORD = '1234'
 DEMO_INVENTORY_PREFIX = 'DEMO-'
 
 
