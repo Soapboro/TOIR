@@ -116,6 +116,9 @@ export default function AnalyticsPage() {
     const y = dayjs().year() + d;
     return { value: y, label: String(y) };
   });
+  const planFactTotals = planFact?.totals ?? {};
+  const planFactBase = planFactTotals.planned_for_execution ?? 0;
+  const formatPlanFactSuffix = (percent) => `из ${planFactBase} (${Math.round(percent ?? 0)}%)`;
 
   /* ── predictions table columns ──────────────────────────────────────────── */
   const predColumns = [
@@ -408,7 +411,7 @@ export default function AnalyticsPage() {
               <Statistic
                 title="Факт"
                 value={planFact?.totals?.completed ?? 0}
-                suffix={`${planFact?.totals?.completion_percent ?? 0}%`}
+                suffix={formatPlanFactSuffix(planFact?.totals?.completion_percent)}
                 valueStyle={{ color: '#52c41a' }}
               />
             </Col>
@@ -416,7 +419,7 @@ export default function AnalyticsPage() {
               <Statistic
                 title="Вовремя"
                 value={planFact?.totals?.completed_on_time ?? 0}
-                suffix={`${planFact?.totals?.on_time_percent ?? 0}%`}
+                suffix={formatPlanFactSuffix(planFact?.totals?.on_time_percent)}
                 valueStyle={{ color: '#1677ff' }}
               />
             </Col>

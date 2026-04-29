@@ -256,6 +256,19 @@ class AnalyticsSummaryAPITests(TestCase):
         response = auth_client(self.operator).get('/api/analytics/summary/')
         self.assertEqual(response.data['open_requests'], 2)
 
+    def test_overdue_counts_past_planned_maintenance(self):
+        MaintenancePlan.objects.create(
+            equipment=self.equipment,
+            maintenance_type=MaintenanceType.SCHEDULED,
+            scheduled_date=timezone.localdate() - timedelta(days=1),
+            status=PlanStatus.PLANNED,
+            assigned_to=self.mechanic,
+        )
+
+        response = auth_client(self.operator).get('/api/analytics/summary/')
+
+        self.assertEqual(response.data['maintenance']['overdue'], 1)
+
 
 class RequestsTrendAPITests(TestCase):
     """GET /api/analytics/requests-trend/?year=YYYY"""
@@ -465,6 +478,44 @@ class PlanFactAPITests(TestCase):
         self.assertEqual(response.data['totals']['completed'], 1)
         self.assertEqual(response.data['totals']['overdue'], 1)
         self.assertEqual(response.data['totals']['completion_percent'], 50.0)
+
+    def test_on_time_percent_uses_executable_plan_as_denominator(self):
+        today = timezone.localdate()
+        completed_plan = MaintenancePlan.objects.create(
+            equipment=self.equipment,
+            maintenance_type=MaintenanceType.SCHEDULED,
+            scheduled_date=today,
+            status=PlanStatus.COMPLETED,
+            assigned_to=self.mechanic,
+        )
+        MaintenanceHistory.objects.create(
+            equipment=self.equipment,
+            plan=completed_plan,
+            maintenance_type=MaintenanceType.SCHEDULED,
+            performed_at=timezone.now(),
+            performed_by=self.mechanic,
+            work_performed='Done',
+        )
+        MaintenancePlan.objects.create(
+            equipment=self.equipment,
+            maintenance_type=MaintenanceType.SCHEDULED,
+            scheduled_date=today - timedelta(days=1),
+            status=PlanStatus.PLANNED,
+            assigned_to=self.mechanic,
+        )
+
+        response = auth_client(self.operator).get(
+            self.url,
+            {
+                'date_from': (today - timedelta(days=1)).isoformat(),
+                'date_to': today.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['totals']['completed_on_time'], 1)
+        self.assertEqual(response.data['totals']['overdue'], 1)
+        self.assertEqual(response.data['totals']['on_time_percent'], 50.0)
 
     def test_invalid_period_returns_400(self):
         today = timezone.localdate()

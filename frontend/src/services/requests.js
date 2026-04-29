@@ -7,6 +7,7 @@ export const requestsApi = {
   detail:    (id)                  => api.get(`/requests/${id}/`).then((r) => r.data),
   create:    (data)                => api.post('/requests/', data).then((r) => r.data),
   assign:    (id, user_id)         => api.put(`/requests/${id}/assign/`, { user_id }).then((r) => r.data),
+  take:      (id)                  => api.put(`/requests/${id}/take/`).then((r) => r.data),
   setStatus: (id, status, notes)   =>
     api.put(`/requests/${id}/status/`, { status, ...(notes ? { resolution_notes: notes } : {}) }).then((r) => r.data),
 };

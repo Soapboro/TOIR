@@ -47,6 +47,11 @@ class EquipmentListTests(TestCase):
         response = auth_client(mechanic).get(EQUIPMENT_LIST)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_manager_can_list(self):
+        manager = make_manager()
+        response = auth_client(manager).get(EQUIPMENT_LIST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_list_returns_both_items(self):
         response = auth_client(self.operator).get(EQUIPMENT_LIST)
         # Поддерживаем как пагинированный, так и обычный ответ
@@ -88,9 +93,9 @@ class EquipmentCreateTests(TestCase):
         response = self._create(self.admin)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_manager_can_create(self):
+    def test_manager_cannot_create(self):
         response = self._create(self.manager, inventory_number='INV-NEW-002')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_mechanic_cannot_create(self):
         response = self._create(self.mechanic, inventory_number='INV-NEW-003')
@@ -167,13 +172,13 @@ class EquipmentUpdateTests(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_manager_can_update(self):
+    def test_manager_cannot_update(self):
         response = auth_client(self.manager).patch(
             equipment_detail(self.equipment.pk),
             {'location': 'Цех №2'},
             format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_mechanic_cannot_update(self):
         response = auth_client(self.mechanic).patch(
@@ -226,10 +231,11 @@ class EquipmentDeleteTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Equipment.objects.filter(pk=eq.pk).exists())
 
-    def test_manager_can_delete(self):
+    def test_manager_cannot_delete(self):
         eq = make_equipment(inventory_number='INV-DEL-2')
         response = auth_client(self.manager).delete(equipment_detail(eq.pk))
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Equipment.objects.filter(pk=eq.pk).exists())
 
     def test_mechanic_cannot_delete(self):
         eq = make_equipment(inventory_number='INV-DEL-3')

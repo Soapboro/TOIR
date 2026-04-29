@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
@@ -276,7 +276,8 @@ class SummaryView(APIView):
                     scheduled_date__lte=week_end,
                 ).count(),
                 'overdue': MaintenancePlan.objects.filter(
-                    status=PlanStatus.OVERDUE,
+                    Q(status=PlanStatus.OVERDUE)
+                    | Q(status=PlanStatus.PLANNED, scheduled_date__lt=today)
                 ).count(),
             },
         })
@@ -501,7 +502,7 @@ class PlanFactView(APIView):
                 history = plan.history_record
             except MaintenanceHistory.DoesNotExist:
                 history = None
-            if history and history.performed_at.date() <= plan.scheduled_date:
+            if history and timezone.localtime(history.performed_at).date() <= plan.scheduled_date:
                 completed_on_time += 1
             else:
                 completed_late += 1
@@ -567,7 +568,7 @@ class PlanFactView(APIView):
                 'pending': pending,
                 'cancelled': cancelled,
                 'completion_percent': self._percent(completed, planned_for_execution),
-                'on_time_percent': self._percent(completed_on_time, completed),
+                'on_time_percent': self._percent(completed_on_time, planned_for_execution),
             },
             'by_type': by_type,
             'by_equipment': by_equipment,

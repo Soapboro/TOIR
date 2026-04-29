@@ -127,12 +127,25 @@ export default function RequestDetailDrawer({ requestId, onClose }) {
     onSuccess: () => { invalidate(); setStatusConfirmOpen(false); setPendingStatus(null); setResolutionNotes(''); },
   });
 
+  const takeMutation = useMutation({
+    mutationFn: () => requestsApi.take(requestId),
+    onSuccess: invalidate,
+  });
+
   const handleStatusClick = (status) => {
     setPendingStatus(status);
     setStatusConfirmOpen(true);
   };
 
-  const nextStatuses = req ? (VALID_TRANSITIONS[req.status] ?? []) : [];
+  const isAssignedMechanic = user?.role === 'mechanic' && req?.assigned_to === user?.id;
+  const canChangeStatus = canManage || isAssignedMechanic;
+  const canTake = (
+    user?.role === 'mechanic'
+    && req?.status === 'new'
+    && !req?.assigned_to
+    && dayjs().diff(dayjs(req.created_at), 'minute') >= 120
+  );
+  const nextStatuses = req && canChangeStatus ? (VALID_TRANSITIONS[req.status] ?? []) : [];
 
   return (
     <>
@@ -190,17 +203,29 @@ export default function RequestDetailDrawer({ requestId, onClose }) {
             <Divider orientation="left" plain>История</Divider>
             <Timeline items={buildTimeline(req)} style={{ marginTop: 8 }} />
 
-            {canManage && (
+            {(canManage || canChangeStatus || canTake) && (
               <>
                 <Divider orientation="left" plain>Действия</Divider>
                 <Space wrap>
-                  <Button
-                    icon={<UserOutlined />}
-                    onClick={() => setAssignModalOpen(true)}
-                    disabled={['closed', 'cancelled', 'completed'].includes(req.status)}
-                  >
-                    Назначить исполнителя
-                  </Button>
+                  {canManage && (
+                    <Button
+                      icon={<UserOutlined />}
+                      onClick={() => setAssignModalOpen(true)}
+                      disabled={['closed', 'cancelled', 'completed'].includes(req.status)}
+                    >
+                      Назначить исполнителя
+                    </Button>
+                  )}
+                  {canTake && (
+                    <Button
+                      type="primary"
+                      icon={<SyncOutlined />}
+                      loading={takeMutation.isPending}
+                      onClick={() => takeMutation.mutate()}
+                    >
+                      Взять в работу
+                    </Button>
+                  )}
                   {nextStatuses.map((s) => {
                     const isDestructive = s === 'cancelled';
                     const isPositive    = ['completed', 'closed', 'in_progress'].includes(s);
@@ -220,6 +245,14 @@ export default function RequestDetailDrawer({ requestId, onClose }) {
                 {statusMutation.isError && (
                   <Alert
                     message="Ошибка при изменении статуса"
+                    type="error"
+                    showIcon
+                    style={{ marginTop: 12 }}
+                  />
+                )}
+                {takeMutation.isError && (
+                  <Alert
+                    message="Не удалось взять заявку в работу"
                     type="error"
                     showIcon
                     style={{ marginTop: 12 }}

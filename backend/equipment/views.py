@@ -4,7 +4,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from users.permissions import IsAdminOrManager
+from users.permissions import IsAdminUser
 from .filters import EquipmentFilter
 from .models import Equipment, MaintenanceRegulation
 from .serializers import (
@@ -42,7 +42,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [IsAdminOrManager()]
+            return [IsAdminUser()]
         return [IsAuthenticated()]
 
     def get_serializer_class(self):
@@ -131,7 +131,7 @@ class MaintenanceRegulationViewSet(
     def get_permissions(self):
         if self.action == 'list':
             return [IsAuthenticated()]
-        return [IsAdminOrManager()]
+        return [IsAdminUser()]
 
     def get_queryset(self):
         """

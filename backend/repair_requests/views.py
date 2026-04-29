@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 from rest_framework import mixins, viewsets, status
@@ -17,6 +20,8 @@ from .serializers import (
     RepairRequestUpdateSerializer,
     StatusTransitionSerializer,
 )
+
+SELF_ASSIGN_DELAY = timedelta(hours=2)
 
 
 class RepairRequestViewSet(
@@ -47,6 +52,7 @@ class RepairRequestViewSet(
     ordering = ['-created_at']
 
     def get_queryset(self):
+        self_assign_cutoff = timezone.now() - SELF_ASSIGN_DELAY
         qs = (
             RepairRequest.objects
             .select_related('equipment', 'created_by', 'assigned_to')
@@ -58,7 +64,15 @@ class RepairRequestViewSet(
         if user.role in (Role.ADMIN, Role.MANAGER):
             return qs
         if user.role == Role.MECHANIC:
-            return qs.filter(Q(assigned_to=user) | Q(created_by=user))
+            return qs.filter(
+                Q(assigned_to=user)
+                | Q(created_by=user)
+                | Q(
+                    status=RequestStatus.NEW,
+                    assigned_to__isnull=True,
+                    created_at__lte=self_assign_cutoff,
+                )
+            )
         if user.role == Role.OPERATOR:
             return qs.filter(created_by=user)
         return qs.none()
@@ -114,6 +128,58 @@ class RepairRequestViewSet(
         repair_request.assigned_to = serializer.validated_data['assigned_to']
         repair_request.status = RequestStatus.ASSIGNED
         repair_request.save(update_fields=['assigned_to', 'status', 'updated_at'])
+
+        return Response(
+            RepairRequestDetailSerializer(repair_request, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['put'], url_path='take',
+            permission_classes=[IsAuthenticated])
+    def take(self, request, pk=None):
+        """
+        PUT /api/requests/{id}/take/
+        РњРµС…Р°РЅРёРє РјРѕР¶РµС‚ СЃР°Рј РІР·СЏС‚СЊ РЅРµРЅР°Р·РЅР°С‡РµРЅРЅСѓСЋ РЅРѕРІСѓСЋ Р·Р°СЏРІРєСѓ РІ СЂР°Р±РѕС‚Сѓ,
+        РµСЃР»Рё СЃ РјРѕРјРµРЅС‚Р° СЃРѕР·РґР°РЅРёСЏ РїСЂРѕС€Р»Рѕ РЅРµ РјРµРЅРµРµ 2 С‡Р°СЃРѕРІ.
+        """
+        if request.user.role != Role.MECHANIC:
+            return Response(
+                {'detail': 'Р’Р·СЏС‚СЊ Р·Р°СЏРІРєСѓ РІ СЂР°Р±РѕС‚Сѓ РјРѕР¶РµС‚ С‚РѕР»СЊРєРѕ РјРµС…Р°РЅРёРє.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        with transaction.atomic():
+            try:
+                repair_request = (
+                    RepairRequest.objects
+                    .select_for_update()
+                    .select_related('equipment', 'created_by', 'assigned_to')
+                    .get(pk=pk)
+                )
+            except RepairRequest.DoesNotExist:
+                return Response(
+                    {'detail': 'Р—Р°СЏРІРєР° РЅРµ РЅР°Р№РґРµРЅР°.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if repair_request.assigned_to_id is not None:
+                return Response(
+                    {'detail': 'Р—Р°СЏРІРєР° СѓР¶Рµ РЅР°Р·РЅР°С‡РµРЅР° РёСЃРїРѕР»РЅРёС‚РµР»СЋ.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if repair_request.status != RequestStatus.NEW:
+                return Response(
+                    {'detail': 'РЎР°РјРѕСЃС‚РѕСЏС‚РµР»СЊРЅРѕ РІР·СЏС‚СЊ РјРѕР¶РЅРѕ С‚РѕР»СЊРєРѕ РЅРѕРІСѓСЋ Р·Р°СЏРІРєСѓ.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if repair_request.created_at > timezone.now() - SELF_ASSIGN_DELAY:
+                return Response(
+                    {'detail': 'Р—Р°СЏРІРєСѓ РјРѕР¶РЅРѕ РІР·СЏС‚СЊ РІ СЂР°Р±РѕС‚Сѓ, РµСЃР»Рё РѕРЅР° РЅРµ РЅР°Р·РЅР°С‡РµРЅР° РІ С‚РµС‡РµРЅРёРµ 2 С‡Р°СЃРѕРІ.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            repair_request.assigned_to = request.user
+            repair_request.status = RequestStatus.IN_PROGRESS
+            repair_request.save(update_fields=['assigned_to', 'status', 'updated_at'])
 
         return Response(
             RepairRequestDetailSerializer(repair_request, context={'request': request}).data
