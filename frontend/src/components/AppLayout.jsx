@@ -7,23 +7,22 @@ import {
   FileTextOutlined,
   CalendarOutlined,
   BarChartOutlined,
-  BellOutlined,
   UserOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
+import NotificationBell from './notifications/NotificationBell';
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
 
 const NAV_ITEMS = [
-  { key: '/',             icon: <DashboardOutlined />, label: <Link to="/">Дашборд</Link> },
-  { key: '/equipment',    icon: <ToolOutlined />,      label: <Link to="/equipment">Оборудование</Link> },
-  { key: '/requests',     icon: <FileTextOutlined />,  label: <Link to="/requests">Заявки</Link> },
-  { key: '/maintenance',  icon: <CalendarOutlined />,  label: <Link to="/maintenance">ТО</Link> },
-  { key: '/analytics',    icon: <BarChartOutlined />,  label: <Link to="/analytics">Аналитика</Link> },
-  { key: '/notifications',icon: <BellOutlined />,      label: <Link to="/notifications">Уведомления</Link> },
+  { key: '/',            icon: <DashboardOutlined />, label: <Link to="/">Дашборд</Link> },
+  { key: '/equipment',   icon: <ToolOutlined />,      label: <Link to="/equipment">Оборудование</Link> },
+  { key: '/requests',    icon: <FileTextOutlined />,  label: <Link to="/requests">Заявки</Link> },
+  { key: '/maintenance', icon: <CalendarOutlined />,  label: <Link to="/maintenance">ТО</Link> },
+  { key: '/analytics',   icon: <BarChartOutlined />,  label: <Link to="/analytics">Аналитика</Link> },
 ];
 
 export default function AppLayout({ children }) {
@@ -50,7 +49,7 @@ export default function AppLayout({ children }) {
   ];
 
   const selectedKey = NAV_ITEMS.find(
-    (item) => item.key !== '/' && location.pathname.startsWith(item.key)
+    (item) => item.key !== '/' && location.pathname.startsWith(item.key),
   )?.key ?? '/';
 
   return (
@@ -70,6 +69,7 @@ export default function AppLayout({ children }) {
         <Text strong style={{ color: '#fff', fontSize: 18, whiteSpace: 'nowrap', letterSpacing: 1 }}>
           ТОИР
         </Text>
+
         <Menu
           theme="dark"
           mode="horizontal"
@@ -77,6 +77,10 @@ export default function AppLayout({ children }) {
           items={NAV_ITEMS}
           style={{ flex: 1, minWidth: 0 }}
         />
+
+        {/* bell — positioned between nav and user avatar */}
+        <NotificationBell />
+
         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
           <Space style={{ cursor: 'pointer' }}>
             <Badge dot status="success">
@@ -88,6 +92,7 @@ export default function AppLayout({ children }) {
           </Space>
         </Dropdown>
       </Header>
+
       <Content style={{ padding: 24, background: '#f5f5f5' }}>
         {children}
       </Content>

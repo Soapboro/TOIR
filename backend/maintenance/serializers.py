@@ -9,11 +9,19 @@ User = get_user_model()
 
 # ── План ТО ───────────────────────────────────────────────────────────────────
 
+class _AssignedUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'full_name', 'email']
+
+
 class MaintenancePlanSerializer(serializers.ModelSerializer):
     maintenance_type_display = serializers.CharField(
         source='get_maintenance_type_display', read_only=True,
     )
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    equipment_detail = EquipmentListSerializer(source='equipment', read_only=True)
+    assigned_to_detail = _AssignedUserSerializer(source='assigned_to', read_only=True)
 
     class Meta:
         model = MaintenancePlan

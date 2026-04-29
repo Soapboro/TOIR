@@ -1,6 +1,23 @@
 import django_filters
 
-from .models import MaintenanceHistory, MaintenanceSchedule, MaintenanceType, PlanStatus
+from .models import MaintenanceHistory, MaintenancePlan, MaintenanceSchedule, MaintenanceType, PlanStatus
+
+
+class MaintenancePlanFilter(django_filters.FilterSet):
+    equipment = django_filters.NumberFilter(field_name='equipment_id')
+    assigned_to = django_filters.NumberFilter(field_name='assigned_to_id')
+    status = django_filters.ChoiceFilter(choices=PlanStatus.choices)
+    maintenance_type = django_filters.ChoiceFilter(choices=MaintenanceType.choices)
+
+    month = django_filters.NumberFilter(field_name='scheduled_date', lookup_expr='month')
+    year = django_filters.NumberFilter(field_name='scheduled_date', lookup_expr='year')
+
+    scheduled_after = django_filters.DateFilter(field_name='scheduled_date', lookup_expr='gte')
+    scheduled_before = django_filters.DateFilter(field_name='scheduled_date', lookup_expr='lte')
+
+    class Meta:
+        model = MaintenancePlan
+        fields = ['equipment', 'assigned_to', 'status', 'maintenance_type']
 
 
 class MaintenanceHistoryFilter(django_filters.FilterSet):

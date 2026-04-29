@@ -1,0 +1,28 @@
+# ── Stage 1: Build React ──────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --legacy-peer-deps
+
+COPY . .
+
+# Отключаем создание source map для меньшего размера образа
+ENV GENERATE_SOURCEMAP=false \
+    NODE_ENV=production
+
+RUN npm run build
+
+
+# ── Stage 2: Serve with nginx ─────────────────────────────────────────────────
+FROM nginx:1.25-alpine
+
+COPY --from=builder /app/build /usr/share/nginx/html
+# Перезаписываем дефолтный конфиг nginx нашим SPA-конфигом
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget -q --spider http://localhost/ || exit 1

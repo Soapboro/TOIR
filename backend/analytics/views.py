@@ -18,6 +18,11 @@ from .models import EquipmentReliability, FailurePrediction
 from .serializers import EquipmentReliabilitySerializer, FailurePredictionSerializer
 from .services import predict_next_failure, calculate_mtbf
 
+MONTH_LABELS_RU = [
+    'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн',
+    'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек',
+]
+
 
 # ── inline response schemas for drf-spectacular ──────────────────────────────
 
@@ -319,6 +324,77 @@ class EquipmentStatsView(APIView):
     },
     tags=['analytics'],
 )
+class RequestsTrendView(APIView):
+    """
+    GET /api/analytics/requests-trend/?year=YYYY
+    Динамика заявок по месяцам: кол-во новых и закрытых за каждый месяц года.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        year = request.query_params.get('year')
+        try:
+            year = int(year) if year else timezone.now().year
+        except ValueError:
+            return Response({'error': 'Неверный год'}, status=400)
+
+        result = []
+        for month in range(1, 13):
+            new_count = RepairRequest.objects.filter(
+                created_at__year=year,
+                created_at__month=month,
+            ).count()
+            completed_count = RepairRequest.objects.filter(
+                completed_at__year=year,
+                completed_at__month=month,
+                status__in=[RequestStatus.COMPLETED, RequestStatus.CLOSED],
+            ).count()
+            result.append({
+                'month': month,
+                'month_label': MONTH_LABELS_RU[month - 1],
+                'new': new_count,
+                'completed': completed_count,
+            })
+        return Response(result)
+
+
+class EquipmentStatsListView(APIView):
+    """
+    GET /api/analytics/equipment-stats/
+    Сводная статистика по всему парку: кол-во ремонтов, MTBF, дата посл. ТО.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        equipment_qs = Equipment.objects.only('id', 'name', 'inventory_number')
+        result = []
+        for eq in equipment_qs:
+            repair_count = RepairRequest.objects.filter(equipment=eq).count()
+            mtbf = calculate_mtbf(eq.id)
+            last_maint = (
+                MaintenanceHistory.objects
+                .filter(equipment=eq)
+                .order_by('-performed_at')
+                .values('performed_at', 'maintenance_type')
+                .first()
+            )
+            result.append({
+                'equipment_id': eq.id,
+                'equipment_name': eq.name,
+                'inventory_number': eq.inventory_number,
+                'repair_count': repair_count,
+                'mtbf_hours': round(float(mtbf), 1) if mtbf is not None else None,
+                'last_maintenance_at': (
+                    last_maint['performed_at'].isoformat() if last_maint else None
+                ),
+                'last_maintenance_type': (
+                    last_maint['maintenance_type'] if last_maint else None
+                ),
+            })
+        result.sort(key=lambda x: x['repair_count'], reverse=True)
+        return Response(result)
+
+
 class ReportView(APIView):
     """GET /api/analytics/report/?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD"""
     permission_classes = [IsAuthenticated]

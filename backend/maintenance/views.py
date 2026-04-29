@@ -2,7 +2,7 @@ from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated
 
 from users.permissions import IsAdminOrMechanic, IsAdminOrManager
-from .filters import MaintenanceHistoryFilter, MaintenanceScheduleFilter
+from .filters import MaintenanceHistoryFilter, MaintenancePlanFilter, MaintenanceScheduleFilter
 from .models import MaintenancePlan, MaintenanceHistory, MaintenanceSchedule, PlanStatus
 from .serializers import (
     MaintenancePlanSerializer,
@@ -24,7 +24,7 @@ class MaintenancePlanViewSet(viewsets.ModelViewSet):
         'equipment', 'assigned_to', 'regulation',
     ).order_by('scheduled_date')
     serializer_class = MaintenancePlanSerializer
-    filterset_fields = ['status', 'maintenance_type', 'equipment', 'assigned_to']
+    filterset_class = MaintenancePlanFilter
     search_fields = ['equipment__name', 'notes']
     ordering_fields = ['scheduled_date', 'status', 'maintenance_type']
 
