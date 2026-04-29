@@ -18,7 +18,7 @@ from django.utils import timezone
 from rest_framework import status
 
 from analytics.services import calculate_mtbf, predict_next_failure
-from maintenance.models import MaintenanceHistory, MaintenanceType
+from maintenance.models import MaintenanceHistory, MaintenancePlan, MaintenanceType, PlanStatus
 from repair_requests.models import RepairRequest
 from .fixtures import (
     auth_client,
@@ -416,3 +416,63 @@ class LivePredictionsAPITests(TestCase):
             first_null_index = data.index(null_entries[0])
             last_non_null_index = max(data.index(e) for e in non_null)
             self.assertGreater(first_null_index, last_non_null_index)
+
+
+class PlanFactAPITests(TestCase):
+    """GET /api/analytics/plan-fact/"""
+
+    def setUp(self):
+        self.operator = make_operator()
+        self.mechanic = make_mechanic()
+        self.equipment = make_equipment()
+        self.url = '/api/analytics/plan-fact/'
+
+    def test_requires_authentication(self):
+        from rest_framework.test import APIClient
+        response = APIClient().get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_returns_totals_and_breakdowns(self):
+        today = timezone.localdate()
+        MaintenancePlan.objects.create(
+            equipment=self.equipment,
+            maintenance_type=MaintenanceType.SCHEDULED,
+            scheduled_date=today,
+            status=PlanStatus.COMPLETED,
+            assigned_to=self.mechanic,
+        )
+        MaintenancePlan.objects.create(
+            equipment=self.equipment,
+            maintenance_type=MaintenanceType.INSPECTION,
+            scheduled_date=today - timedelta(days=1),
+            status=PlanStatus.OVERDUE,
+            assigned_to=self.mechanic,
+        )
+
+        response = auth_client(self.operator).get(
+            self.url,
+            {
+                'date_from': (today - timedelta(days=2)).isoformat(),
+                'date_to': today.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('totals', response.data)
+        self.assertIn('by_type', response.data)
+        self.assertIn('by_equipment', response.data)
+        self.assertEqual(response.data['totals']['planned_total'], 2)
+        self.assertEqual(response.data['totals']['completed'], 1)
+        self.assertEqual(response.data['totals']['overdue'], 1)
+        self.assertEqual(response.data['totals']['completion_percent'], 50.0)
+
+    def test_invalid_period_returns_400(self):
+        today = timezone.localdate()
+        response = auth_client(self.operator).get(
+            self.url,
+            {
+                'date_from': today.isoformat(),
+                'date_to': (today - timedelta(days=1)).isoformat(),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

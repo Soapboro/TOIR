@@ -10,6 +10,7 @@ from .views import (
     SummaryView,
     EquipmentStatsView,
     EquipmentStatsListView,
+    PlanFactView,
     RequestsTrendView,
     ReportView,
 )
@@ -28,6 +29,7 @@ urlpatterns = [
     path('summary/', SummaryView.as_view(), name='analytics-summary'),
     path('equipment/<int:equipment_id>/stats/', EquipmentStatsView.as_view(), name='equipment-stats'),
     path('equipment-stats/', EquipmentStatsListView.as_view(), name='equipment-stats-list'),
+    path('plan-fact/', PlanFactView.as_view(), name='plan-fact'),
     path('requests-trend/', RequestsTrendView.as_view(), name='requests-trend'),
     path('report/', ReportView.as_view(), name='analytics-report'),
 

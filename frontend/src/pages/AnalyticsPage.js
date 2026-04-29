@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Row, Col, Card, Statistic, Table, Tag, Tooltip,
-  Select, Typography, Space, Spin, Empty, Badge,
+  Select, Typography, Space, Spin, Empty, Badge, Progress,
 } from 'antd';
 import {
   ToolOutlined, AlertOutlined, ClockCircleOutlined,
@@ -103,6 +103,12 @@ export default function AnalyticsPage() {
   const { data: equipStats = [], isLoading: statsLoading } = useQuery({
     queryKey: ['analytics-equipment-stats'],
     queryFn: analyticsApi.equipmentStats,
+    staleTime: 60_000,
+  });
+
+  const { data: planFact, isLoading: planFactLoading } = useQuery({
+    queryKey: ['analytics-plan-fact'],
+    queryFn: analyticsApi.planFact,
     staleTime: 60_000,
   });
 
@@ -231,6 +237,44 @@ export default function AnalyticsPage() {
     },
   ];
 
+  const planFactTypeColumns = [
+    {
+      title: 'Вид ТО',
+      dataIndex: 'maintenance_type',
+      key: 'type',
+      render: (v) => MAINTENANCE_TYPE[v] ?? v,
+    },
+    {
+      title: 'План',
+      dataIndex: 'planned',
+      key: 'planned',
+      width: 80,
+      align: 'right',
+    },
+    {
+      title: 'Факт',
+      dataIndex: 'completed',
+      key: 'completed',
+      width: 80,
+      align: 'right',
+    },
+    {
+      title: 'Просрочено',
+      dataIndex: 'overdue',
+      key: 'overdue',
+      width: 110,
+      align: 'right',
+      render: (v) => <Badge count={v} showZero style={{ backgroundColor: v ? '#ff4d4f' : '#d9d9d9' }} />,
+    },
+    {
+      title: 'Выполнение',
+      dataIndex: 'completion_percent',
+      key: 'completion',
+      width: 150,
+      render: (v) => <Progress percent={Math.round(v)} size="small" />,
+    },
+  ];
+
   /* ── render ─────────────────────────────────────────────────────────────── */
 
   return (
@@ -346,6 +390,59 @@ export default function AnalyticsPage() {
       </Card>
 
       {/* ── PREDICTIONS + EQUIPMENT STATS ── */}
+      <Card
+        title="План/факт выполнения ТО"
+        bordered={false}
+        style={{ marginBottom: 24, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}
+      >
+        <Spin spinning={planFactLoading}>
+          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+            <Col xs={24} md={6}>
+              <Statistic
+                title="План"
+                value={planFact?.totals?.planned_for_execution ?? 0}
+                suffix={`из ${planFact?.totals?.planned_total ?? 0}`}
+              />
+            </Col>
+            <Col xs={24} md={6}>
+              <Statistic
+                title="Факт"
+                value={planFact?.totals?.completed ?? 0}
+                suffix={`${planFact?.totals?.completion_percent ?? 0}%`}
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Col>
+            <Col xs={24} md={6}>
+              <Statistic
+                title="Вовремя"
+                value={planFact?.totals?.completed_on_time ?? 0}
+                suffix={`${planFact?.totals?.on_time_percent ?? 0}%`}
+                valueStyle={{ color: '#1677ff' }}
+              />
+            </Col>
+            <Col xs={24} md={6}>
+              <Statistic
+                title="Просрочено"
+                value={planFact?.totals?.overdue ?? 0}
+                valueStyle={{ color: '#ff4d4f' }}
+              />
+            </Col>
+          </Row>
+          <Progress
+            percent={Math.round(planFact?.totals?.completion_percent ?? 0)}
+            style={{ marginBottom: 16 }}
+          />
+          <Table
+            rowKey="maintenance_type"
+            columns={planFactTypeColumns}
+            dataSource={planFact?.by_type ?? []}
+            size="small"
+            pagination={false}
+            locale={{ emptyText: <Empty description="Нет данных за текущий период" /> }}
+          />
+        </Spin>
+      </Card>
+
       <Row gutter={[16, 16]}>
         {/* Predictions table */}
         <Col xs={24} xl={14}>

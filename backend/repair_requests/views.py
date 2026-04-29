@@ -1,9 +1,11 @@
 from django.utils import timezone
+from django.db.models import Q
 from rest_framework import mixins, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from users.models import Role
 from users.permissions import IsAdminOrManager
 from .filters import RepairRequestFilter
 from .models import RepairRequest, RequestStatus
@@ -45,14 +47,24 @@ class RepairRequestViewSet(
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return (
+        qs = (
             RepairRequest.objects
             .select_related('equipment', 'created_by', 'assigned_to')
             .order_by('-created_at')
         )
+        user = self.request.user
+        if not user.is_authenticated:
+            return qs.none()
+        if user.role in (Role.ADMIN, Role.MANAGER):
+            return qs
+        if user.role == Role.MECHANIC:
+            return qs.filter(Q(assigned_to=user) | Q(created_by=user))
+        if user.role == Role.OPERATOR:
+            return qs.filter(created_by=user)
+        return qs.none()
 
     def get_permissions(self):
-        if self.action in ('assign', 'destroy'):
+        if self.action in ('assign', 'destroy', 'update', 'partial_update'):
             return [IsAdminOrManager()]
         return [IsAuthenticated()]
 
@@ -72,6 +84,15 @@ class RepairRequestViewSet(
     def perform_create(self, serializer):
         """created_by берётся из токена, не из тела запроса."""
         serializer.save(created_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        allowed_roles = {Role.ADMIN, Role.MECHANIC, Role.OPERATOR}
+        if request.user.role not in allowed_roles:
+            return Response(
+                {'detail': 'Создавать заявки могут оператор, механик и администратор.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
 
     # ── Кастомные actions ────────────────────────────────────────────────────
 
@@ -107,6 +128,11 @@ class RepairRequestViewSet(
         Переводит заявку по разрешённой цепочке статусов.
         """
         repair_request = self.get_object()
+        if not self._can_change_status(request.user, repair_request):
+            return Response(
+                {'detail': 'Нет прав на смену статуса этой заявки.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = StatusTransitionSerializer(
             data=request.data,
             context={'request': request, 'repair_request': repair_request},
@@ -131,3 +157,15 @@ class RepairRequestViewSet(
         return Response(
             RepairRequestDetailSerializer(repair_request, context={'request': request}).data
         )
+
+    def _can_change_status(self, user, repair_request):
+        if user.role in (Role.ADMIN, Role.MANAGER):
+            return True
+        if user.role == Role.MECHANIC and repair_request.assigned_to_id == user.pk:
+            return True
+        if user.role == Role.OPERATOR:
+            return (
+                repair_request.created_by_id == user.pk
+                and repair_request.status == RequestStatus.NEW
+            )
+        return False

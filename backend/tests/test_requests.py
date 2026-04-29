@@ -15,7 +15,7 @@ from repair_requests.models import RepairRequest, RequestStatus
 from .fixtures import (
     auth_client,
     make_admin, make_manager, make_mechanic, make_operator,
-    make_equipment,
+    make_equipment, make_user,
 )
 
 REQUESTS_LIST = '/api/requests/'
@@ -66,10 +66,10 @@ class CreateRequestTests(TestCase):
         response = self._create(user=mechanic)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_manager_can_create(self):
+    def test_manager_cannot_create(self):
         manager = make_manager()
         response = self._create(user=manager)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_persists_to_database(self):
         self._create()
@@ -197,6 +197,16 @@ class StatusTransitionTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         req.refresh_from_db()
         self.assertEqual(req.status, RequestStatus.IN_PROGRESS)
+
+    def test_unassigned_mechanic_cannot_change_status(self):
+        req = self._make_assigned_request()
+        other_mechanic = make_user('mechanic2@example.com', 'mechanic', username='mechanic2')
+        response = auth_client(other_mechanic).put(
+            request_status(req.pk),
+            {'status': 'in_progress'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_assigned_to_cancelled_is_valid(self):
         req = self._make_assigned_request()

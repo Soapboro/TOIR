@@ -7,4 +7,5 @@ export const analyticsApi = {
   requestsTrend: (year) => api.get('/analytics/requests-trend/', { params: { year } }).then(unpack),
   predictions:   ()     => api.get('/analytics/predictions/').then(unpack),
   equipmentStats: ()    => api.get('/analytics/equipment-stats/').then(unpack),
+  planFact:      ()     => api.get('/analytics/plan-fact/').then((r) => r.data),
 };
