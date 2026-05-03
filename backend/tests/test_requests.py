@@ -200,15 +200,15 @@ class TakeRequestTests(TestCase):
         self.assertEqual(req.assigned_to_id, self.mechanic.id)
         self.assertEqual(req.status, RequestStatus.IN_PROGRESS)
 
-    def test_mechanic_cannot_take_before_two_hours(self):
+    def test_mechanic_can_take_fresh_unassigned_request(self):
         req = self._make_request(created_delta=timedelta(hours=1, minutes=59))
 
         response = auth_client(self.mechanic).put(request_take(req.pk), {}, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         req.refresh_from_db()
-        self.assertIsNone(req.assigned_to_id)
-        self.assertEqual(req.status, RequestStatus.NEW)
+        self.assertEqual(req.assigned_to_id, self.mechanic.id)
+        self.assertEqual(req.status, RequestStatus.IN_PROGRESS)
 
     def test_mechanic_cannot_take_assigned_request(self):
         req = self._make_request(assigned_to=self.other_mechanic, status=RequestStatus.ASSIGNED)
@@ -227,7 +227,7 @@ class TakeRequestTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_mechanic_list_includes_only_old_unassigned_new_requests(self):
+    def test_mechanic_list_includes_unassigned_new_requests(self):
         old_unassigned = self._make_request(title='Р”РѕСЃС‚СѓРїРЅР°СЏ')
         fresh_unassigned = self._make_request(
             created_delta=timedelta(minutes=30),
@@ -245,7 +245,7 @@ class TakeRequestTests(TestCase):
         data = response.data.get('results', response.data)
         ids = {item['id'] for item in data}
         self.assertIn(old_unassigned.id, ids)
-        self.assertNotIn(fresh_unassigned.id, ids)
+        self.assertIn(fresh_unassigned.id, ids)
         self.assertNotIn(assigned_to_other.id, ids)
 
 

@@ -1,0 +1,80 @@
+@startuml
+title Диаграмма компонентов системы ТОИР
+
+skinparam componentStyle rectangle
+
+actor "Пользователь" as User
+
+node "Клиентское устройство" {
+  component "Web UI\nReact + Ant Design" as Frontend
+  component "Auth Store\nZustand" as AuthStore
+  component "API Client\nAxios" as ApiClient
+}
+
+node "Web-сервер" {
+  component "Nginx" as Nginx
+}
+
+node "Backend" {
+  component "Django REST API" as Backend
+
+  package "Модули API" {
+    component "Users\nпользователи и роли" as Users
+    component "Equipment\nоборудование" as Equipment
+    component "Repair Requests\nремонтные заявки" as Requests
+    component "Maintenance\nпланы и история ТО" as Maintenance
+    component "Analytics\nдашборды и отчеты" as Analytics
+    component "Notifications\nуведомления" as Notifications
+  }
+
+  component "JWT Auth\nSimpleJWT" as JWT
+  component "Permissions\nrole-based access" as Permissions
+  component "Scheduler\nформирование графиков ТО" as Scheduler
+}
+
+database "PostgreSQL" as DB
+folder "Media Storage\nпаспорта оборудования" as Media
+
+User --> Frontend : работает в браузере
+Frontend --> AuthStore : хранит пользователя\nи токены
+Frontend --> ApiClient : вызывает API
+ApiClient --> Nginx : HTTPS /api/*
+Nginx --> Backend : проксирование запросов
+
+Backend --> JWT : аутентификация
+Backend --> Permissions : проверка ролей
+Backend --> Users
+Backend --> Equipment
+Backend --> Requests
+Backend --> Maintenance
+Backend --> Analytics
+Backend --> Notifications
+
+Users --> DB
+Equipment --> DB
+Requests --> DB
+Maintenance --> DB
+Analytics --> DB
+Notifications --> DB
+
+Equipment --> Media : файлы паспортов
+Scheduler --> Maintenance : создает графики ТО
+Scheduler --> DB
+
+Requests --> Notifications : события назначений\nи смены статусов
+Maintenance --> Notifications : события ТО
+Analytics --> Equipment : статистика оборудования
+Analytics --> Requests : статистика заявок
+Analytics --> Maintenance : план-факт ТО
+
+note right of Permissions
+  Основные роли:
+  - admin: пользователи, оборудование,
+    заявки, просмотр ТО
+  - manager: планирование ТО,
+    назначение заявок и ТО
+  - mechanic: выполнение заявок и ТО
+  - operator: создание и просмотр своих заявок
+end note
+
+@enduml

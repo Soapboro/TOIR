@@ -91,6 +91,7 @@ class UserViewSet(viewsets.ModelViewSet):
 class UserAdminViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
@@ -114,9 +115,17 @@ class UserAdminViewSet(
     def get_serializer_class(self):
         if self.action == 'list':
             return UserListSerializer
+        if self.action == 'create':
+            return UserCreateSerializer
         if self.action in ('update', 'partial_update'):
             return UserAdminUpdateSerializer
         return UserDetailSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserDetailSerializer(user).data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
         user = self.get_object()

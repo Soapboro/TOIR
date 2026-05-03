@@ -1,7 +1,7 @@
 from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from users.permissions import IsAdminOrMechanic, IsAdminOrManager
+from users.permissions import IsAdminOrMechanic, IsManager
 from .filters import MaintenanceHistoryFilter, MaintenancePlanFilter, MaintenanceScheduleFilter
 from .models import MaintenancePlan, MaintenanceHistory, MaintenanceSchedule, PlanStatus
 from .serializers import (
@@ -30,7 +30,7 @@ class MaintenancePlanViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [IsAdminOrManager()]
+            return [IsManager()]
         return [IsAuthenticated()]
 
 
@@ -108,5 +108,5 @@ class MaintenanceScheduleViewSet(
 
     def get_permissions(self):
         if self.action in ('update', 'partial_update'):
-            return [IsAdminOrManager()]
+            return [IsManager()]
         return [IsAuthenticated()]

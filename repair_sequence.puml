@@ -1,0 +1,81 @@
+@startuml
+title Диаграмма последовательности: процесс ремонта по заявке
+
+actor "Оператор" as Operator
+actor "Менеджер" as Manager
+actor "Механик" as Mechanic
+
+participant "Интерфейс системы" as UI
+participant "Backend API" as API
+participant "Модуль заявок" as Requests
+participant "Модуль оборудования" as Equipment
+participant "Модуль уведомлений" as Notifications
+database "Хранилище данных" as Storage
+
+Operator -> UI : Создает заявку на ремонт
+UI -> API : Передает данные заявки
+API -> Requests : Проверить и создать заявку
+Requests -> Equipment : Проверить выбранное оборудование
+Equipment -> Storage : Получить данные оборудования
+Storage --> Equipment : Оборудование найдено
+Requests -> Storage : Сохранить новую заявку
+Storage --> Requests : Заявка сохранена
+Requests --> API : Новая заявка
+API --> UI : Показать созданную заявку
+
+Manager -> UI : Открывает заявки без исполнителя
+UI -> API : Запросить список заявок
+API -> Requests : Получить заявки для назначения
+Requests -> Storage : Получить актуальные заявки
+Storage --> Requests : Список заявок
+Requests --> API : Заявки без исполнителя
+API --> UI : Показать список
+
+Manager -> UI : Назначает исполнителя
+UI -> API : Передает выбранного механика
+API -> Requests : Назначить исполнителя
+Requests -> Storage : Обновить заявку
+Storage --> Requests : Заявка обновлена
+Requests -> Notifications : Подготовить уведомление
+Notifications -> Storage : Сохранить уведомление
+Notifications --> Requests : Уведомление создано
+Requests --> API : Обновленная заявка
+API --> UI : Показать назначение
+
+Mechanic -> UI : Открывает назначенную заявку
+UI -> API : Запросить карточку заявки
+API -> Requests : Получить детали заявки
+Requests -> Storage : Получить данные заявки
+Storage --> Requests : Карточка заявки
+Requests --> API : Детали заявки
+API --> UI : Показать описание работ
+
+Mechanic -> UI : Берет заявку в работу
+UI -> API : Сменить статус на "В работе"
+API -> Requests : Проверить допустимость перехода
+Requests -> Storage : Обновить статус заявки
+Storage --> Requests : Статус обновлен
+Requests -> Notifications : Уведомить участников
+Notifications -> Storage : Сохранить уведомления
+Requests --> API : Обновленная заявка
+API --> UI : Показать статус "В работе"
+
+Mechanic -> UI : Завершает ремонт
+UI -> API : Передать результат работ
+API -> Requests : Завершить заявку
+Requests -> Storage : Сохранить результат и новый статус
+Storage --> Requests : Заявка завершена
+Requests -> Notifications : Уведомить автора заявки
+Notifications -> Storage : Сохранить уведомление
+Requests --> API : Завершенная заявка
+API --> UI : Показать статус "Выполнена"
+
+Manager -> UI : Проверяет результат
+UI -> API : Закрыть выполненную заявку
+API -> Requests : Закрыть заявку
+Requests -> Storage : Сохранить финальный статус
+Storage --> Requests : Заявка закрыта
+Requests --> API : Закрытая заявка
+API --> UI : Обновить список заявок
+
+@enduml

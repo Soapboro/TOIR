@@ -5,7 +5,6 @@ import {
 import { PlusOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import useAuthStore from '../store/authStore';
 import { requestsApi, usersApi } from '../services/requests';
 import { PRIORITY_OPTIONS, STATUS_OPTIONS, PRIORITY } from '../components/requests/constants';
 import PriorityTag from '../components/requests/PriorityTag';
@@ -16,8 +15,6 @@ import RequestDetailDrawer from '../components/requests/RequestDetailDrawer';
 const { Title } = Typography;
 
 export default function RequestsPage() {
-  const user = useAuthStore((s) => s.user);
-
   const [filters, setFilters]   = useState({ status: null, priority: null, assigned_to: null, search: '' });
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);

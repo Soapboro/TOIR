@@ -1,0 +1,77 @@
+@startuml
+title Диаграмма развертывания системы ТОИР
+
+skinparam componentStyle rectangle
+
+actor "Пользователь" as User
+
+node "Рабочее место пользователя" as Client {
+  artifact "Браузер" as Browser
+}
+
+node "Сервер приложения" as AppServer {
+  node "Docker Compose" as Compose {
+    node "nginx" as NginxNode {
+      artifact "Nginx\nreverse proxy" as Nginx
+      artifact "TLS / HTTPS" as TLS
+    }
+
+    node "frontend" as FrontendNode {
+      artifact "React build\nстатические файлы" as Frontend
+    }
+
+    node "backend" as BackendNode {
+      artifact "Django REST API" as Backend
+      artifact "Gunicorn / WSGI" as Gunicorn
+      artifact "Scheduler\nзадачи ТО" as Scheduler
+    }
+
+    database "PostgreSQL" as Postgres {
+      artifact "База данных ТОИР" as Database
+    }
+
+    folder "Media volume" as Media {
+      artifact "Файлы паспортов\nоборудования" as Passports
+    }
+
+    folder "Static volume" as Static {
+      artifact "Статика backend" as StaticFiles
+    }
+  }
+}
+
+cloud "Интернет / локальная сеть" as Network
+
+User --> Browser : работает с системой
+Browser --> Network : HTTPS
+Network --> Nginx : запросы UI и API
+
+Nginx --> Frontend : отдача интерфейса
+Nginx --> Backend : /api/*
+Nginx --> Media : /media/*
+Nginx --> Static : /static/*
+
+Backend --> Gunicorn : обработка HTTP-запросов
+Backend --> Postgres : чтение и запись данных
+Backend --> Media : загрузка и выдача файлов
+Scheduler --> Postgres : обновление графиков ТО
+Scheduler --> Backend : использует модели приложения
+
+note right of Backend
+  Backend содержит модули:
+  - пользователи и роли
+  - оборудование
+  - ремонтные заявки
+  - планы и история ТО
+  - аналитика
+  - уведомления
+end note
+
+note bottom of Postgres
+  Хранит основные данные:
+  пользователей, оборудование,
+  заявки, планы ТО, историю,
+  уведомления и аналитику.
+end note
+
+@enduml

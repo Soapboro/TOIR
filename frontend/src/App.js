@@ -9,6 +9,7 @@ import RequestsPage from './pages/RequestsPage';
 import MaintenancePage from './pages/MaintenancePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import NotificationsPage from './pages/NotificationsPage';
+import UsersPage from './pages/UsersPage';
 
 function PrivateRoute({ children }) {
   const token = useAuthStore((s) => s.token);
@@ -26,6 +27,7 @@ export default function App() {
       <Route path="/maintenance"   element={<PrivateRoute><MaintenancePage /></PrivateRoute>} />
       <Route path="/analytics"     element={<PrivateRoute><AnalyticsPage /></PrivateRoute>} />
       <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
+      <Route path="/users"         element={<PrivateRoute><UsersPage /></PrivateRoute>} />
       <Route path="*"              element={<Navigate to="/" replace />} />
     </Routes>
   );

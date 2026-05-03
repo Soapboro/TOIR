@@ -1,0 +1,78 @@
+@startuml
+title Диаграмма последовательности: прогнозирование отказов оборудования
+
+actor "Менеджер / Администратор" as User
+
+participant "Интерфейс системы" as UI
+participant "Backend API" as API
+participant "Модуль аналитики" as Analytics
+participant "Модуль оборудования" as Equipment
+participant "Модуль ТО" as Maintenance
+participant "Модуль заявок" as Requests
+participant "Сервис прогнозирования" as Prediction
+database "Хранилище данных" as Storage
+
+User -> UI : Открывает дашборд или аналитику
+UI -> API : Запросить общую сводку
+API -> Analytics : Подготовить показатели
+
+Analytics -> Equipment : Получить состояние оборудования
+Equipment -> Storage : Получить данные оборудования
+Storage --> Equipment : Данные оборудования
+
+Analytics -> Requests : Получить статистику заявок
+Requests -> Storage : Получить данные заявок
+Storage --> Requests : Данные заявок
+
+Analytics -> Maintenance : Получить статистику ТО
+Maintenance -> Storage : Получить планы и историю ТО
+Storage --> Maintenance : Данные ТО
+
+Analytics --> API : Общая сводка
+API --> UI : Показать KPI и статистику
+
+User -> UI : Открывает прогноз отказов
+UI -> API : Запросить прогнозы
+API -> Analytics : Сформировать прогноз по оборудованию
+Analytics -> Equipment : Получить список оборудования
+Equipment -> Storage : Получить парк оборудования
+Storage --> Equipment : Список оборудования
+
+loop Для каждой единицы оборудования
+  Analytics -> Prediction : Рассчитать риск отказа
+  Prediction -> Maintenance : Получить историю обслуживания
+  Maintenance -> Storage : Получить историю ТО и ремонтов
+  Storage --> Maintenance : История работ
+  Prediction -> Requests : Получить историю заявок
+  Requests -> Storage : Получить данные по неисправностям
+  Storage --> Requests : История неисправностей
+
+  alt Данных достаточно
+    Prediction -> Prediction : Оценить период между отказами
+    Prediction --> Analytics : Прогноз и уровень уверенности
+  else Данных недостаточно
+    Prediction --> Analytics : Прогноз недоступен
+  end
+end
+
+Analytics -> Analytics : Упорядочить оборудование по риску
+Analytics --> API : Список прогнозов
+API --> UI : Показать риски отказов
+
+User -> UI : Открывает карточку оборудования
+UI -> API : Запросить подробную статистику
+API -> Analytics : Подготовить показатели оборудования
+Analytics -> Equipment : Получить данные оборудования
+Analytics -> Requests : Получить историю ремонтов
+Analytics -> Maintenance : Получить последнее и следующее ТО
+Analytics -> Prediction : Рассчитать надежность
+Equipment -> Storage : Получить карточку оборудования
+Requests -> Storage : Получить историю заявок
+Maintenance -> Storage : Получить историю и планы ТО
+Prediction -> Storage : Получить данные для расчета
+
+Storage --> Analytics : Данные для карточки
+Analytics --> API : Статистика оборудования
+API --> UI : Показать карточку и прогноз
+
+@enduml

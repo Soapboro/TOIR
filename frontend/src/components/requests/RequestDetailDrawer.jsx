@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Drawer, Descriptions, Typography, Space, Button, Select, Input,
-  Timeline, Divider, Modal, Alert, Spin, Tag,
+  Timeline, Divider, Modal, Alert, Spin,
 } from 'antd';
 import {
   UserOutlined, ClockCircleOutlined, CheckCircleOutlined,
@@ -10,7 +10,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { requestsApi, usersApi } from '../../services/requests';
-import { PRIORITY, STATUS, VALID_TRANSITIONS } from './constants';
+import { STATUS, VALID_TRANSITIONS } from './constants';
 import PriorityTag from './PriorityTag';
 import StatusBadge from './StatusBadge';
 import useAuthStore from '../../store/authStore';
@@ -143,7 +143,6 @@ export default function RequestDetailDrawer({ requestId, onClose }) {
     user?.role === 'mechanic'
     && req?.status === 'new'
     && !req?.assigned_to
-    && dayjs().diff(dayjs(req.created_at), 'minute') >= 120
   );
   const nextStatuses = req && canChangeStatus ? (VALID_TRANSITIONS[req.status] ?? []) : [];
 

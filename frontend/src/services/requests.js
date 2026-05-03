@@ -14,8 +14,15 @@ export const requestsApi = {
 
 export const usersApi = {
   list: (params) => api.get('/users/', { params }).then(unpack),
+  detail: (id) => api.get(`/users/${id}/`).then((r) => r.data),
+  create: (data) => api.post('/users/', data).then((r) => r.data),
+  update: (id, data) => api.patch(`/users/${id}/`, data).then((r) => r.data),
+  delete: (id) => api.delete(`/users/${id}/`).then((r) => r.data),
 };
 
 export const equipmentApi = {
   list: (params) => api.get('/equipment/', { params }).then(unpack),
+  create: (data) => api.post('/equipment/', data).then((r) => r.data),
+  update: (id, data) => api.patch(`/equipment/${id}/`, data).then((r) => r.data),
+  delete: (id) => api.delete(`/equipment/${id}/`).then((r) => r.data),
 };

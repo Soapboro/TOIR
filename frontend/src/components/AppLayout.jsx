@@ -8,6 +8,7 @@ import {
   CalendarOutlined,
   BarChartOutlined,
   UserOutlined,
+  TeamOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import useAuthStore from '../store/authStore';
@@ -17,18 +18,22 @@ import NotificationBell from './notifications/NotificationBell';
 const { Header, Content } = Layout;
 const { Text } = Typography;
 
-const NAV_ITEMS = [
-  { key: '/',            icon: <DashboardOutlined />, label: <Link to="/">Дашборд</Link> },
-  { key: '/equipment',   icon: <ToolOutlined />,      label: <Link to="/equipment">Оборудование</Link> },
-  { key: '/requests',    icon: <FileTextOutlined />,  label: <Link to="/requests">Заявки</Link> },
-  { key: '/maintenance', icon: <CalendarOutlined />,  label: <Link to="/maintenance">ТО</Link> },
-  { key: '/analytics',   icon: <BarChartOutlined />,  label: <Link to="/analytics">Аналитика</Link> },
+const buildNavItems = (user) => [
+  { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Дашборд</Link> },
+  { key: '/equipment', icon: <ToolOutlined />, label: <Link to="/equipment">Оборудование</Link> },
+  { key: '/requests', icon: <FileTextOutlined />, label: <Link to="/requests">Заявки</Link> },
+  { key: '/maintenance', icon: <CalendarOutlined />, label: <Link to="/maintenance">ТО</Link> },
+  { key: '/analytics', icon: <BarChartOutlined />, label: <Link to="/analytics">Аналитика</Link> },
+  ...(user?.role === 'admin'
+    ? [{ key: '/users', icon: <TeamOutlined />, label: <Link to="/users">Пользователи</Link> }]
+    : []),
 ];
 
 export default function AppLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const navItems = buildNavItems(user);
 
   const handleLogout = async () => {
     const { refreshToken } = useAuthStore.getState();
@@ -48,7 +53,7 @@ export default function AppLayout({ children }) {
     },
   ];
 
-  const selectedKey = NAV_ITEMS.find(
+  const selectedKey = navItems.find(
     (item) => item.key !== '/' && location.pathname.startsWith(item.key),
   )?.key ?? '/';
 
@@ -74,11 +79,10 @@ export default function AppLayout({ children }) {
           theme="dark"
           mode="horizontal"
           selectedKeys={[selectedKey]}
-          items={NAV_ITEMS}
+          items={navItems}
           style={{ flex: 1, minWidth: 0 }}
         />
 
-        {/* bell — positioned between nav and user avatar */}
         <NotificationBell />
 
         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>

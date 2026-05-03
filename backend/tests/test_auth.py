@@ -8,16 +8,19 @@
 - Доступ без токена          — 401
 - Доступ с неподходящей ролью — 403
 """
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from .fixtures import make_admin, make_manager, make_mechanic, make_operator, make_equipment
+from .fixtures import auth_client, make_admin, make_manager, make_mechanic, make_operator, make_equipment
 
 AUTH_REGISTER = '/api/auth/register/'
 AUTH_LOGIN    = '/api/auth/login/'
 AUTH_ME       = '/api/auth/me/'
 EQUIPMENT_LIST = '/api/equipment/'
+USERS_LIST = '/api/users/'
+User = get_user_model()
 
 
 class RegisterTests(TestCase):
@@ -170,6 +173,33 @@ class MeEndpointTests(TestCase):
         self.assertEqual(response.data['role'], 'operator')
 
 
+class AdminUserManagementTests(TestCase):
+    """POST /api/users/ — создание пользователей администратором."""
+
+    def setUp(self):
+        self.admin = make_admin()
+        self.manager = make_manager()
+        self.payload = {
+            'email': 'created@example.com',
+            'username': 'created',
+            'full_name': 'Created User',
+            'password': 'StrongPass123!',
+            'role': 'mechanic',
+        }
+
+    def test_admin_can_create_user(self):
+        response = auth_client(self.admin).post(USERS_LIST, self.payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(User.objects.filter(email='created@example.com').exists())
+        self.assertEqual(response.data['role'], 'mechanic')
+
+    def test_non_admin_cannot_create_user(self):
+        response = auth_client(self.manager).post(USERS_LIST, self.payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class RoleBasedAccessTests(TestCase):
     """Проверка отказов при доступе с недостаточными правами (403)."""
 
@@ -197,12 +227,12 @@ class RoleBasedAccessTests(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_manager_can_create_equipment(self):
+    def test_manager_cannot_create_equipment(self):
         self.equipment_payload['inventory_number'] = 'INV-TEST-002'
         response = self._client(self.manager).post(
             EQUIPMENT_LIST, self.equipment_payload, format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_mechanic_cannot_create_equipment(self):
         response = self._client(self.mechanic).post(
