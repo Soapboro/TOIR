@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from equipment.serializers import EquipmentListSerializer
+from users.models import Role
 from .models import RepairRequest, RequestStatus, VALID_STATUS_TRANSITIONS
 
 User = get_user_model()
@@ -98,7 +99,7 @@ class AssignSerializer(serializers.Serializer):
     """PUT /api/requests/{id}/assign — назначить исполнителя."""
 
     user_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True),
+        queryset=User.objects.filter(is_active=True, role=Role.MECHANIC),
         source='assigned_to',
     )
 

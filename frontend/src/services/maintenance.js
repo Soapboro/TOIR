@@ -9,7 +9,20 @@ export const maintenanceApi = {
 };
 
 export const maintenanceRecordsApi = {
+  list: (params) => api.get('/maintenance-records/', { params }).then(unpack),
   create: (data) => api.post('/maintenance-records/', data).then((r) => r.data),
+};
+
+export const maintenanceSchedulesApi = {
+  list: (params) => api.get('/schedules/', { params }).then(unpack),
+  update: (id, data) => api.patch(`/schedules/${id}/`, data).then((r) => r.data),
+};
+
+export const regulationsApi = {
+  list: (params) => api.get('/regulations/', { params }).then(unpack),
+  create: (equipmentId, data) => api.post(`/equipment/${equipmentId}/regulations/`, data).then((r) => r.data),
+  update: (id, data) => api.patch(`/regulations/${id}/`, data).then((r) => r.data),
+  delete: (id) => api.delete(`/regulations/${id}/`).then((r) => r.data),
 };
 
 export const equipmentApi = {

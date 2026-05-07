@@ -138,13 +138,21 @@ export default function RequestDetailDrawer({ requestId, onClose }) {
   };
 
   const isAssignedMechanic = user?.role === 'mechanic' && req?.assigned_to === user?.id;
-  const canChangeStatus = canManage || isAssignedMechanic;
+  const isOwnOperator = user?.role === 'operator' && req?.created_by === user?.id;
+  const canChangeStatus = canManage || isAssignedMechanic || isOwnOperator;
   const canTake = (
     user?.role === 'mechanic'
     && req?.status === 'new'
     && !req?.assigned_to
   );
-  const nextStatuses = req && canChangeStatus ? (VALID_TRANSITIONS[req.status] ?? []) : [];
+  const nextStatuses = req && canChangeStatus
+    ? (VALID_TRANSITIONS[req.status] ?? []).filter((status) => {
+        if (status === 'completed') return isAssignedMechanic;
+        if (status === 'cancelled') return canManage || isOwnOperator;
+        if (isOwnOperator) return req.status === 'new';
+        return canManage || isAssignedMechanic;
+      })
+    : [];
 
   return (
     <>
@@ -281,7 +289,7 @@ export default function RequestDetailDrawer({ requestId, onClose }) {
           showSearch
           filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
           options={users
-            .filter((u) => ['mechanic', 'admin'].includes(u.role))
+            .filter((u) => u.role === 'mechanic')
             .map((u) => ({ value: u.id, label: u.full_name || u.email }))}
         />
       </Modal>

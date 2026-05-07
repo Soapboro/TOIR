@@ -10,13 +10,16 @@ class MaintenanceRegulationSerializer(serializers.ModelSerializer):
     maintenance_type_display = serializers.CharField(
         source='get_maintenance_type_display', read_only=True,
     )
+    equipment_name = serializers.CharField(source='equipment.name', read_only=True)
+    equipment_inventory = serializers.CharField(source='equipment.inventory_number', read_only=True)
     # equipment только для чтения — при создании берётся из URL /{equipment_id}/
     equipment = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = MaintenanceRegulation
         fields = [
-            'id', 'equipment', 'maintenance_type', 'maintenance_type_display',
+            'id', 'equipment', 'equipment_name', 'equipment_inventory',
+            'maintenance_type', 'maintenance_type_display',
             'interval_days', 'description',
         ]
 

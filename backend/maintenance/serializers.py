@@ -22,6 +22,8 @@ class MaintenancePlanSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     equipment_detail = EquipmentListSerializer(source='equipment', read_only=True)
     assigned_to_detail = _AssignedUserSerializer(source='assigned_to', read_only=True)
+    regulation_description = serializers.CharField(source='regulation.description', read_only=True)
+    regulation_interval_days = serializers.IntegerField(source='regulation.interval_days', read_only=True)
 
     class Meta:
         model = MaintenancePlan
@@ -117,6 +119,11 @@ class MaintenanceRecordCreateSerializer(serializers.ModelSerializer):
         if plan and plan.equipment_id != equipment.pk:
             raise serializers.ValidationError(
                 {'plan': 'Указанный план относится к другому оборудованию.'}
+            )
+        request = self.context.get('request')
+        if plan and request and plan.assigned_to_id != request.user.pk:
+            raise serializers.ValidationError(
+                {'plan': 'Отметить ТО выполненным может только назначенный исполнитель.'}
             )
         return attrs
 

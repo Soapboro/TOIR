@@ -142,7 +142,6 @@ class RepairRequestViewSet(
                 repair_request = (
                     RepairRequest.objects
                     .select_for_update()
-                    .select_related('equipment', 'created_by', 'assigned_to')
                     .get(pk=pk)
                 )
             except RepairRequest.DoesNotExist:
@@ -165,6 +164,12 @@ class RepairRequestViewSet(
             repair_request.status = RequestStatus.IN_PROGRESS
             repair_request.save(update_fields=['assigned_to', 'status', 'updated_at'])
 
+            repair_request = (
+                RepairRequest.objects
+                .select_related('equipment', 'created_by', 'assigned_to')
+                .get(pk=repair_request.pk)
+            )
+
         return Response(
             RepairRequestDetailSerializer(repair_request, context={'request': request}).data
         )
@@ -177,7 +182,17 @@ class RepairRequestViewSet(
         Тело: { "status": "<new_status>", "resolution_notes": "..." }
         Переводит заявку по разрешённой цепочке статусов.
         """
-        repair_request = self.get_object()
+        try:
+            repair_request = (
+                RepairRequest.objects
+                .select_related('equipment', 'created_by', 'assigned_to')
+                .get(pk=pk)
+            )
+        except RepairRequest.DoesNotExist:
+            return Response(
+                {'detail': 'Заявка не найдена.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         if not self._can_change_status(request.user, repair_request):
             return Response(
                 {'detail': 'Нет прав на смену статуса этой заявки.'},
@@ -209,13 +224,17 @@ class RepairRequestViewSet(
         )
 
     def _can_change_status(self, user, repair_request):
+        requested_status = self.request.data.get('status')
+        if requested_status == RequestStatus.COMPLETED:
+            return user.role == Role.MECHANIC and repair_request.assigned_to_id == user.pk
+        if requested_status == RequestStatus.CANCELLED:
+            if user.role in (Role.ADMIN, Role.MANAGER):
+                return True
+            return user.role == Role.OPERATOR and repair_request.created_by_id == user.pk
         if user.role in (Role.ADMIN, Role.MANAGER):
             return True
         if user.role == Role.MECHANIC and repair_request.assigned_to_id == user.pk:
             return True
         if user.role == Role.OPERATOR:
-            return (
-                repair_request.created_by_id == user.pk
-                and repair_request.status == RequestStatus.NEW
-            )
+            return repair_request.created_by_id == user.pk and repair_request.status == RequestStatus.NEW
         return False

@@ -1,19 +1,25 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert, Badge, Button, Calendar, Card, Col, ConfigProvider, DatePicker, Descriptions,
-  Divider, Drawer, Form, Input, InputNumber, Row, Select, Segmented, Space, Table,
-  Tooltip, Typography, message,
+  Divider, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Segmented,
+  Space, Table, Tabs, Tag, Tooltip, Typography, message,
 } from 'antd';
 import {
-  CalendarOutlined, CheckCircleOutlined, PlusOutlined, TableOutlined,
+  CalendarOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, TableOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import locale from 'antd/locale/ru_RU';
-import { maintenanceApi, maintenanceRecordsApi, equipmentApi } from '../services/maintenance';
 import {
-  MAINTENANCE_TYPE, PLAN_STATUS, STATUS_OPTIONS, resolveStatus,
+  equipmentApi,
+  maintenanceApi,
+  maintenanceRecordsApi,
+  maintenanceSchedulesApi,
+  regulationsApi,
+} from '../services/maintenance';
+import {
+  MAINTENANCE_TYPE, PLAN_STATUS, STATUS_OPTIONS, TYPE_OPTIONS, resolveStatus,
 } from '../components/maintenance/constants';
 import CreatePlanModal from '../components/maintenance/CreatePlanModal';
 import PlanStatusTag from '../components/maintenance/PlanStatusTag';
@@ -41,6 +47,99 @@ function getEquipmentInventory(plan) {
   return plan.equipment_detail?.inventory_number || plan.equipment_inventory || null;
 }
 
+function RegulationModal({ open, regulation, equipment, onClose }) {
+  const [form] = Form.useForm();
+  const queryClient = useQueryClient();
+  const isEdit = Boolean(regulation);
+
+  useEffect(() => {
+    if (!open) return;
+    form.setFieldsValue({
+      equipment: regulation?.equipment ?? null,
+      maintenance_type: regulation?.maintenance_type ?? 'scheduled',
+      interval_days: regulation?.interval_days ?? 30,
+      description: regulation?.description ?? '',
+    });
+  }, [form, open, regulation]);
+
+  const createMutation = useMutation({
+    mutationFn: ({ equipment: equipmentId, ...values }) => regulationsApi.create(equipmentId, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance-regulations'] });
+      form.resetFields();
+      onClose();
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (values) => regulationsApi.update(regulation.id, {
+      maintenance_type: values.maintenance_type,
+      interval_days: values.interval_days,
+      description: values.description,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance-regulations'] });
+      form.resetFields();
+      onClose();
+    },
+  });
+
+  const pending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Modal
+      title={isEdit ? 'Редактирование регламента ТО' : 'Новый регламент ТО'}
+      open={open}
+      onCancel={() => { form.resetFields(); onClose(); }}
+      onOk={() => form.submit()}
+      okText={isEdit ? 'Сохранить' : 'Создать'}
+      cancelText="Отмена"
+      confirmLoading={pending}
+      width={560}
+      destroyOnClose
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(values) => (isEdit ? updateMutation.mutate(values) : createMutation.mutate(values))}
+      >
+        <Form.Item
+          name="equipment"
+          label="Оборудование"
+          rules={[{ required: true, message: 'Выберите оборудование' }]}
+        >
+          <Select
+            showSearch
+            disabled={isEdit}
+            options={equipment.map((item) => ({
+              value: item.id,
+              label: `${item.name} [${item.inventory_number}]`,
+            }))}
+            filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
+          />
+        </Form.Item>
+        <Form.Item
+          name="maintenance_type"
+          label="Вид ТО"
+          rules={[{ required: true, message: 'Выберите вид ТО' }]}
+        >
+          <Select options={TYPE_OPTIONS} />
+        </Form.Item>
+        <Form.Item
+          name="interval_days"
+          label="Периодичность, дней"
+          rules={[{ required: true, message: 'Укажите периодичность' }]}
+        >
+          <InputNumber min={1} step={1} precision={0} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="description" label="Описание работ">
+          <Input.TextArea rows={4} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
 export default function MaintenancePage() {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
@@ -56,9 +155,14 @@ export default function MaintenancePage() {
   const [filterEquipment, setFilterEquipment] = useState(null);
   const [filterStatus, setFilterStatus] = useState(null);
   const [calendarValue, setCalendarValue] = useState(dayjs());
+  const [activeTab, setActiveTab] = useState('plans');
+  const [regulationOpen, setRegulationOpen] = useState(false);
+  const [editingRegulation, setEditingRegulation] = useState(null);
 
   const canPlan = user?.role === 'manager';
   const canComplete = user?.role === 'admin' || user?.role === 'mechanic';
+  const canManageRegulations = user?.role === 'admin' || user?.role === 'mechanic';
+  const canUpdateSchedules = user?.role === 'manager';
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ['maintenance-plans'],
@@ -68,6 +172,21 @@ export default function MaintenancePage() {
   const { data: equipment = [] } = useQuery({
     queryKey: ['equipment-list'],
     queryFn: () => equipmentApi.list(),
+  });
+
+  const { data: regulations = [], isLoading: regulationsLoading } = useQuery({
+    queryKey: ['maintenance-regulations'],
+    queryFn: () => regulationsApi.list(),
+  });
+
+  const { data: schedules = [], isLoading: schedulesLoading } = useQuery({
+    queryKey: ['maintenance-schedules'],
+    queryFn: () => maintenanceSchedulesApi.list(),
+  });
+
+  const { data: records = [], isLoading: recordsLoading } = useQuery({
+    queryKey: ['maintenance-records'],
+    queryFn: () => maintenanceRecordsApi.list(),
   });
 
   const completeMutation = useMutation({
@@ -87,6 +206,21 @@ export default function MaintenancePage() {
       setCompleteOpen(false);
       setSelectedPlan(null);
       messageApi.success('ТО отмечено как выполненное');
+    },
+  });
+
+  const deleteRegulationMutation = useMutation({
+    mutationFn: regulationsApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance-regulations'] });
+      messageApi.success('Регламент удалён');
+    },
+  });
+
+  const scheduleStatusMutation = useMutation({
+    mutationFn: ({ id, status }) => maintenanceSchedulesApi.update(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance-schedules'] });
     },
   });
 
@@ -240,11 +374,190 @@ export default function MaintenancePage() {
     form.resetFields();
   };
 
+  const openRegulationModal = (regulation = null) => {
+    if (!canManageRegulations) return;
+    setEditingRegulation(regulation);
+    setRegulationOpen(true);
+  };
+
+  const closeRegulationModal = () => {
+    setEditingRegulation(null);
+    setRegulationOpen(false);
+  };
+
+  const regulationColumns = [
+    {
+      title: 'Оборудование',
+      dataIndex: 'equipment_name',
+      ellipsis: true,
+      render: (value, row) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{value || `#${row.equipment}`}</Text>
+          {row.equipment_inventory && <Text type="secondary">Инв. N {row.equipment_inventory}</Text>}
+        </Space>
+      ),
+    },
+    {
+      title: 'Вид ТО',
+      dataIndex: 'maintenance_type',
+      width: 170,
+      render: (value, row) => row.maintenance_type_display || MAINTENANCE_TYPE[value] || value,
+    },
+    {
+      title: 'Периодичность',
+      dataIndex: 'interval_days',
+      width: 140,
+      align: 'right',
+      render: (value) => `${value} дн.`,
+    },
+    {
+      title: 'Описание',
+      dataIndex: 'description',
+      ellipsis: true,
+      render: (value) => value || <Text type="secondary">Не указано</Text>,
+    },
+    ...(canManageRegulations ? [{
+      title: '',
+      key: 'actions',
+      width: 110,
+      render: (_, record) => (
+        <Space size={4}>
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            aria-label="Редактировать регламент"
+            onClick={() => openRegulationModal(record)}
+          />
+          <Popconfirm
+            title="Удалить регламент?"
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true, loading: deleteRegulationMutation.isPending }}
+            onConfirm={() => deleteRegulationMutation.mutate(record.id)}
+          >
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              aria-label="Удалить регламент"
+            />
+          </Popconfirm>
+        </Space>
+      ),
+    }] : []),
+  ];
+
+  const scheduleColumns = [
+    {
+      title: 'Дата',
+      dataIndex: 'scheduled_date',
+      width: 120,
+      sorter: (a, b) => dayjs(a.scheduled_date).unix() - dayjs(b.scheduled_date).unix(),
+      render: (value) => dayjs(value).format('DD.MM.YYYY'),
+    },
+    {
+      title: 'Оборудование',
+      dataIndex: 'equipment_name',
+      ellipsis: true,
+      render: (value, row) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{value || `#${row.equipment}`}</Text>
+          {row.equipment_inventory && <Text type="secondary">Инв. N {row.equipment_inventory}</Text>}
+        </Space>
+      ),
+    },
+    {
+      title: 'Регламент',
+      dataIndex: 'regulation_description',
+      ellipsis: true,
+      render: (value, row) => value || MAINTENANCE_TYPE[row.maintenance_type] || row.maintenance_type,
+    },
+    {
+      title: 'Периодичность',
+      dataIndex: 'interval_days',
+      width: 130,
+      align: 'right',
+      render: (value) => (value ? `${value} дн.` : <Text type="secondary">-</Text>),
+    },
+    {
+      title: 'Статус',
+      dataIndex: 'status',
+      width: 180,
+      render: (value, row) => canUpdateSchedules ? (
+        <Select
+          size="small"
+          value={value}
+          options={STATUS_OPTIONS}
+          style={{ width: 150 }}
+          onClick={(event) => event.stopPropagation()}
+          onChange={(status) => scheduleStatusMutation.mutate({ id: row.id, status })}
+        />
+      ) : (
+        <Tag color={PLAN_STATUS[value]?.color}>{row.status_display || PLAN_STATUS[value]?.label || value}</Tag>
+      ),
+    },
+    {
+      title: 'Примечания',
+      dataIndex: 'notes',
+      ellipsis: true,
+      render: (value) => value || <Text type="secondary">Нет</Text>,
+    },
+  ];
+
+  const recordColumns = [
+    {
+      title: 'Дата выполнения',
+      dataIndex: 'performed_at',
+      width: 170,
+      sorter: (a, b) => dayjs(a.performed_at).unix() - dayjs(b.performed_at).unix(),
+      defaultSortOrder: 'descend',
+      render: (value) => dayjs(value).format('DD.MM.YYYY HH:mm'),
+    },
+    {
+      title: 'Оборудование',
+      dataIndex: 'equipment_name',
+      ellipsis: true,
+      render: (value, row) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{value || `#${row.equipment}`}</Text>
+          {row.equipment_inventory && <Text type="secondary">Инв. N {row.equipment_inventory}</Text>}
+        </Space>
+      ),
+    },
+    {
+      title: 'Вид ТО',
+      dataIndex: 'maintenance_type',
+      width: 160,
+      render: (value, row) => row.maintenance_type_display || MAINTENANCE_TYPE[value] || value,
+    },
+    {
+      title: 'Исполнитель',
+      dataIndex: 'performed_by_name',
+      width: 180,
+      render: (value) => value || <Text type="secondary">Не указан</Text>,
+    },
+    {
+      title: 'Трудоёмкость, ч',
+      dataIndex: 'duration_hours',
+      width: 140,
+      align: 'right',
+      render: (value) => value ?? <Text type="secondary">-</Text>,
+    },
+    {
+      title: 'Следующее ТО',
+      dataIndex: 'next_due_date',
+      width: 130,
+      render: (value) => (value ? dayjs(value).format('DD.MM.YYYY') : <Text type="secondary">-</Text>),
+    },
+  ];
+
   const selectedStatus = selectedPlan ? resolveStatus(selectedPlan) : null;
   const selectedInventory = selectedPlan ? getEquipmentInventory(selectedPlan) : null;
+  const isAssignedToCurrentUser = selectedPlan?.assigned_to === user?.id;
   const selectedCanComplete = (
     selectedPlan
     && canComplete
+    && isAssignedToCurrentUser
     && !['completed', 'cancelled'].includes(selectedPlan.status)
   );
 
@@ -259,6 +572,7 @@ export default function MaintenancePage() {
           </Col>
           <Col>
             <Space>
+              {activeTab === 'plans' && (
               <Segmented
                 value={view}
                 onChange={setView}
@@ -267,15 +581,34 @@ export default function MaintenancePage() {
                   { value: 'calendar', icon: <CalendarOutlined />, label: 'Календарь' },
                 ]}
               />
-              {canPlan && (
+              )}
+              {activeTab === 'plans' && canPlan && (
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreateModal()}>
                   Создать запись
+                </Button>
+              )}
+              {activeTab === 'regulations' && canManageRegulations && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => openRegulationModal()}>
+                  Новый регламент
                 </Button>
               )}
             </Space>
           </Col>
         </Row>
 
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { key: 'plans', label: 'Планы ТО' },
+            { key: 'regulations', label: 'Регламенты' },
+            { key: 'schedules', label: 'Графики' },
+            { key: 'history', label: 'История работ' },
+          ]}
+        />
+
+        {activeTab === 'plans' && (
+          <>
         <Card style={{ marginBottom: 16 }} styles={{ body: { padding: '12px 16px' } }}>
           <Row gutter={[12, 8]} align="middle">
             <Col>
@@ -370,6 +703,41 @@ export default function MaintenancePage() {
             />
           </Card>
         )}
+          </>
+        )}
+
+        {activeTab === 'regulations' && (
+          <Table
+            rowKey="id"
+            dataSource={regulations}
+            columns={regulationColumns}
+            loading={regulationsLoading}
+            pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `Всего: ${total}` }}
+            scroll={{ x: 900 }}
+          />
+        )}
+
+        {activeTab === 'schedules' && (
+          <Table
+            rowKey="id"
+            dataSource={schedules}
+            columns={scheduleColumns}
+            loading={schedulesLoading}
+            pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `Всего: ${total}` }}
+            scroll={{ x: 900 }}
+          />
+        )}
+
+        {activeTab === 'history' && (
+          <Table
+            rowKey="id"
+            dataSource={records}
+            columns={recordColumns}
+            loading={recordsLoading}
+            pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `Всего: ${total}` }}
+            scroll={{ x: 900 }}
+          />
+        )}
 
         {canPlan && (
           <CreatePlanModal
@@ -379,6 +747,15 @@ export default function MaintenancePage() {
               setCreateDefaultDate(null);
             }}
             defaultDate={createDefaultDate}
+          />
+        )}
+
+        {canManageRegulations && (
+          <RegulationModal
+            open={regulationOpen}
+            regulation={editingRegulation}
+            equipment={equipment}
+            onClose={closeRegulationModal}
           />
         )}
 
@@ -432,6 +809,14 @@ export default function MaintenancePage() {
                 {selectedPlan.notes || <Text type="secondary">Примечаний нет</Text>}
               </Typography.Paragraph>
 
+              <Divider orientation="left" plain>Регламент</Divider>
+              <Typography.Paragraph>
+                {selectedPlan.regulation_description || <Text type="secondary">Регламент для этой работы не указан</Text>}
+              </Typography.Paragraph>
+              {selectedPlan.regulation_interval_days && (
+                <Text type="secondary">Периодичность: {selectedPlan.regulation_interval_days} дн.</Text>
+              )}
+
               {selectedPlan.status === 'completed' && (
                 <Alert type="success" showIcon message="Этот план уже выполнен" />
               )}
@@ -441,6 +826,13 @@ export default function MaintenancePage() {
                   type="info"
                   showIcon
                   message="Фиксировать выполнение может администратор или механик"
+                />
+              )}
+              {canComplete && !isAssignedToCurrentUser && !['completed', 'cancelled'].includes(selectedPlan.status) && (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Отметить ТО выполненным может только назначенный исполнитель"
                 />
               )}
             </>

@@ -163,6 +163,17 @@ class AssignRequestTests(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_assign_admin_as_executor_returns_400(self):
+        admin = make_admin()
+
+        response = auth_client(self.manager).put(
+            request_assign(self.req.pk),
+            {'user_id': admin.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class TakeRequestTests(TestCase):
     """PUT /api/requests/{id}/take/"""
@@ -170,6 +181,7 @@ class TakeRequestTests(TestCase):
     def setUp(self):
         self.mechanic = make_mechanic()
         self.other_mechanic = make_user('mechanic2@example.com', 'mechanic', username='mechanic2')
+        self.admin = make_admin()
         self.manager = make_manager()
         self.operator = make_operator()
         self.equipment = make_equipment()
@@ -227,6 +239,20 @@ class TakeRequestTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_admin_cannot_take_request(self):
+        req = self._make_request()
+
+        response = auth_client(self.admin).put(request_take(req.pk), {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_operator_cannot_take_request(self):
+        req = self._make_request()
+
+        response = auth_client(self.operator).put(request_take(req.pk), {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_mechanic_list_includes_unassigned_new_requests(self):
         old_unassigned = self._make_request(title='Р”РѕСЃС‚СѓРїРЅР°СЏ')
         fresh_unassigned = self._make_request(
@@ -253,6 +279,7 @@ class StatusTransitionTests(TestCase):
     """PUT /api/requests/{id}/status/"""
 
     def setUp(self):
+        self.admin     = make_admin()
         self.manager   = make_manager()
         self.mechanic  = make_mechanic()
         self.operator  = make_operator()
@@ -306,6 +333,36 @@ class StatusTransitionTests(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_assigned_mechanic_cannot_cancel_request(self):
+        req = self._make_assigned_request()
+
+        response = auth_client(self.mechanic).put(
+            request_status(req.pk),
+            {'status': 'cancelled'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_operator_can_cancel_own_new_request(self):
+        req = RepairRequest.objects.create(
+            equipment=self.equipment,
+            title='Новая',
+            description='Описание',
+            priority='low',
+            created_by=self.operator,
+        )
+
+        response = auth_client(self.operator).put(
+            request_status(req.pk),
+            {'status': 'cancelled'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        req.refresh_from_db()
+        self.assertEqual(req.status, RequestStatus.CANCELLED)
+
     def test_new_to_completed_is_invalid(self):
         req = RepairRequest.objects.create(
             equipment=self.equipment,
@@ -319,7 +376,7 @@ class StatusTransitionTests(TestCase):
             {'status': 'completed'},
             format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_new_to_in_progress_is_invalid(self):
         req = RepairRequest.objects.create(
@@ -353,6 +410,34 @@ class StatusTransitionTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         req.refresh_from_db()
         self.assertEqual(req.status, RequestStatus.COMPLETED)
+
+    def test_manager_cannot_complete_request(self):
+        req = self._make_assigned_request()
+        auth_client(self.mechanic).put(
+            request_status(req.pk), {'status': 'in_progress'}, format='json',
+        )
+
+        response = auth_client(self.manager).put(
+            request_status(req.pk),
+            {'status': 'completed', 'resolution_notes': 'Done'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_cannot_complete_request(self):
+        req = self._make_assigned_request()
+        auth_client(self.mechanic).put(
+            request_status(req.pk), {'status': 'in_progress'}, format='json',
+        )
+
+        response = auth_client(self.admin).put(
+            request_status(req.pk),
+            {'status': 'completed', 'resolution_notes': 'Done'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_completed_sets_completed_at(self):
         req = self._make_assigned_request()
